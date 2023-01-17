@@ -1,0 +1,29 @@
+{% set data = load_setup_py_data() %}
+
+package:
+  name: conda-ident
+  version: {{ data['version'] }}
+
+source:
+  path: ..
+
+build:
+  noarch: python  # [unix]
+
+requirements:
+  host:
+    - python
+    - setuptools
+    - wheel
+    - pip
+  run:
+    - python
+    {% for dep in data['install_requires'] %}
+    - {{ dep.lower() }}
+    {% endfor %}
+
+about:
+  home: https://github.com/mcg1969/conda-ident
+  summary: simple, opt-in user identification for conda clients
+  license: {{ data.get('license') }}
+  license_file: LICENSE
