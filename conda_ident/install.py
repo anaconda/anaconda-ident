@@ -1,9 +1,8 @@
-from os.path import join
-from os import rename
 import sysconfig
 import sys
+import os
 
-pfile = join(sysconfig.get_paths()['purelib'], 'conda', 'base', 'context.py')
+pfile = os.path.join(sysconfig.get_paths()['purelib'], 'conda', 'base', 'context.py')
 
 pline = '''
 try:
@@ -27,8 +26,7 @@ try:
     with open(pfile + '.new', 'wb') as fp:
         fp.write(text)
         fp.write(pline)
-    rename(pfile, pfile + '.orig')
-    rename(pfile + '.new', pfile)
+    os.rename(pfile, pfile + '.orig')
+    os.rename(pfile + '.new', pfile)
 except Exception as exc:
     print('WARNING: conda_ident activation failed: %s' % exc)
-    pass
