@@ -10,7 +10,7 @@ on:
       - main
 jobs:
   package:
-    runs-on: ubuntu-latest
+    runs-on: [ubuntu-latest, windows-latest]
     steps:
     - name: Retrieve the source code
       uses: actions/checkout@v2
