@@ -20,14 +20,22 @@ jobs:
       with:
         fetch-depth: 0
     - name: Install the build environment
-      run: conda install conda-build anaconda-client
+      shell: bash
+      run: |
+        source $CONDA/bin/activate
+        conda install conda-build anaconda-client
     - name: Build the package
-      run: conda build conda.recipe
+      shell: bash
+      run: |
+        source $CONDA/bin/activate
+        conda build conda.recipe
     - name: Upload to anaconda.org
       if: github.event_name == 'push'
       env:
         ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         GITHUB_REF: ${{ github.ref }}
+      shell: bash
       run: |
+        source $CONDA/bin/activate
         [[ "$GITHUB_REF" =~ ^refs/tags/ ]] || export LABEL="--label dev"
         anaconda --verbose --token $ANACONDA_TOKEN upload --user mcg $LABEL conda-bld/*/*.tar.bz2 --force
