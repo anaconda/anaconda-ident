@@ -1,4 +1,6 @@
 from conda.base.context import Context, context
+from conda.gateways.connection.session import CondaHttpAuth
+from conda.auxlib.decorators import memoize
 
 import base64
 import getpass
@@ -15,26 +17,24 @@ log = getLogger(__name__)
 
 _client_token_formats = {
     'none': '',
+    'default': 'cs',
     'random': 'cs',
     'client': 'cs',
     'session': 's',
     'username': 'ucs',
     'hostname': 'hcs',
-    'userhost': 'uhcs'
+    'userhost': 'uhcs',
+    'org': 'cso'
 }
-_client_token = None
-_session_token = None
-_full_token = {}
 
-def _random_token(nchar):
+
+def get_random_token(nchar):
     nbytes = (nchar * 6 - 1) // 8 + 1
     return base64.urlsafe_b64encode(os.urandom(nbytes))[:nchar].decode('ascii')
 
 
-def _get_client_token():
-    global _client_token
-    if _client_token is not None:
-        return _client_token
+@memoize
+def get_client_token():
     cid_file = join(expanduser('~/.conda'), 'client_token')
     if os.path.exists(cid_file):
         try_save = False
@@ -45,7 +45,7 @@ def _get_client_token():
         except Exception as exc:
             log.debug('Unexpected error reading client token: %s', exc)
     else:
-        _client_token = _random_token(8)
+        _client_token = get_random_token(8)
         try:
             with open(cid_file, 'w') as fp:
                 fp.write(_client_token)
@@ -57,60 +57,94 @@ def _get_client_token():
     return _client_token
 
 
-def _get_session_token():
-    global _session_token
-    if _session_token is not None:
-        return _session_token
-    _session_token = _random_token(8)
+@memoize
+def get_session_token():
+    _session_token = get_random_token(8)
     log.debug('Session token generated: %s', _session_token)
     return _session_token
 
 
-def _client_token_value(token_type):
-    global _full_token
-    if token_type in _full_token:
-        return _full_token[token_type]
+@memoize
+def get_username():
+    try:
+        return getpass.getuser()
+    except Exception as exc:
+        log.debug('getpass.getuser raised an exception: %s' % exc)
+
+
+@memoize
+def get_hostname():
+    value = platform.node()
+    if not value:
+        log.debug('platform.node returned an empty value')
+    return value
+
+
+def get_full_token(token_type):
+    fmt_parts = token_type.split(':', 1)
+    fmt = _client_token_formats.get(fmt_parts[0], fmt_parts[0])
+    if len(fmt_parts) > 1 and 'o' not in fmt:
+        log.debug('Adding o flag')
+        fmt += 'o'
+    if len(fmt_parts) <= 1 and 'o' in fmt:
+        fmt = fmt.replace('o', '')
+        log.debug('Removing o flag')
+    log.debug('Final ident string: %s', fmt)
     parts = []
-    fmt = _client_token_formats.get(token_type, token_type)
     for code in fmt:
-        value = ''
         if code == 'c':
-            value = _get_client_token()
+            value = get_client_token()
         elif code == 's':
-            value = _get_session_token()
+            value = get_session_token()
         elif code == 'u':
-            try:
-                value = getpass.getuser()
-            except Exception as exc:
-                log.debug('getpass.getuser raised an exception: %s' % exc)
+            value = get_username()
         elif code == 'h':
-            value = platform.node()
-            if not value:
-                log.debug('platform.node returned an empty value')
+            value = get_hostname()
+        elif code == 'o':
+            value = fmt_parts[1]
+        else:
+            value = None
         if value:
-            parts.append(code + ':' + value)
-    result = ':'.join(parts)
-    log.debug('Client token: %s %s', token_type, result)
-    _full_token[token_type] = result
+            parts.append(code + '/' + value)
+    result = ' '.join(parts)
+    log.debug('Client token: %s', result)
     return result
 
 
-try:
-    setattr(Context, '__old_init__', Context.__init__)
+def patch_header():
+    CondaHttpAuth._old_apply_basic_auth = CondaHttpAuth._apply_basic_auth
+    def _new_apply_basic_auth(request):
+        result = CondaHttpAuth._old_apply_basic_auth(request)
+        if getattr(Context, '_client_token', None):
+            request.headers['X-Conda-Ident'] = Context._client_token
+        return result
+    CondaHttpAuth._apply_basic_auth = staticmethod(_new_apply_basic_auth)
+
+
+def patch_context():
+    Context._old__init__ = Context.__init__
+    Context._client_token_type = Context._client_token = None
     def _new_init(self, *args, **kwargs):
-        self.__old_init__(*args, **kwargs)
-        fmt = None
+        self._old__init__(*args, **kwargs)
+        token = Context._client_token
+        token_type = Context._client_token_type
         for key, value in self.raw_data.items():
             if 'client_token' in value:
-                fmt = value['client_token']._raw_value
-        if fmt is None:
-            fmt = 'client'
-        elif not isinstance(fmt, str):
-            log.warning('client_token has an invalid value; defaulting to "client"')
-            fmt = 'client'
-        self._cache_['__user_agent'] = self.user_agent +' ct/' + _client_token_value(fmt)
-    setattr(Context, '__init__', _new_init)
-    setattr(context, '__init__', types.MethodType(Context.__init__, context))
-    context.__init__((), None)
+                token_type = value['client_token']._raw_value
+        if token_type is None:
+            token_type = 'default'
+        if token is None or token_type != Context._client_token_type:
+            Context._client_token_type = token_type
+            token = Context._client_token = get_full_token(token_type)
+        if token:
+            new_user_agent = self.user_agent + ' ' + token
+            self._cache_['__user_agent'] = new_user_agent
+    Context.__init__ = _new_init
+    context.__init__ = types.MethodType(_new_init, context)
+
+
+try:
+    patch_context()
+    patch_header()
 except Exception as exc:
-    print('WARNING: conda_ident failed: %s', exc)
+    log.warning('conda_ident failed: %s', exc)
