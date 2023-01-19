@@ -131,6 +131,8 @@ def patch_context():
         for key, value in self.raw_data.items():
             if 'client_token' in value:
                 token_type = value['client_token']._raw_value
+        if token_type is None:
+            token_type = 'default'
         if token is None or token_type != Context._client_token_type:
             Context._client_token_type = token_type
             token = Context._client_token = get_full_token(token_type)

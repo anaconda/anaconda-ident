@@ -5,7 +5,7 @@ import subprocess
 
 nfailed = 0
 test_patterns = (
-    ('none', ''), ('', ''), ('default', 'cs'), ('random', 'cs'), ('client', 'cs'), ('session', 's'),
+    ('none', ''), ('default', 'cs'), ('random', 'cs'), ('client', 'cs'), ('session', 's'),
     ('hostname', 'hcs'), ('username', 'ucs'), ('userhost', 'uhcs'), ('org:testme', 'cso'),
     ('c', 'c'), ('s', 's'), ('u', 'u'), ('h', 'h'), ('o:testme', 'o')
 )

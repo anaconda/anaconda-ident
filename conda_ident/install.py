@@ -35,7 +35,10 @@ try:
         fp.write(text)
         if not removing:
             fp.write(pline)
-    os.rename(pfile, pfile + '.orig')
+    pfile_orig = pfile + '.orig'
+    if os.path.exists(pfile_orig):
+        os.unlink(pfile_orig)
+    os.rename(pfile, pfile_orig)
     os.rename(pfile + '.new', pfile)
 except Exception as exc:
     print('WARNING: conda_ident activation failed: %s' % exc)
