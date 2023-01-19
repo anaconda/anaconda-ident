@@ -28,7 +28,3 @@ jobs:
       run: |
         [[ "$GITHUB_REF" =~ ^refs/tags/ ]] || export LABEL="--label dev"
         anaconda --verbose --token $ANACONDA_TOKEN upload --user mcg $LABEL conda-bld/*/*.tar.bz2 --force
-    - name: Clean up older artifacts
-      uses: glassechidna/artifact-cleaner@master
-      with:
-        minimumAge: 86400
