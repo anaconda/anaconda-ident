@@ -15,7 +15,12 @@ try:
     with open(pfile, 'rb') as fp:
         text = fp.read()
     removing = '--disable' in sys.argv
-    if (b'conda_ident' in text[-len(pline):]) != removing:
+    status_only = '--status' in sys.argv
+    is_present = b'conda_ident' in text[-len(pline):]
+    if status_only:
+        print('conda_ident status:', 'ENABLED' if is_present else 'DISABLED')
+        sys.exit(0)
+    if is_present != removing:
         sys.exit(0)
     wineol = b'\r\n' in text
     if wineol != (b'\r\n' in pline):
