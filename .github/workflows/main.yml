@@ -19,7 +19,7 @@ jobs:
     - name: Install the build environment
       run: conda install conda-build anaconda-client
     - name: Build the package
-      run: conda build conda-recipe
+      run: conda build conda.recipe
     - name: Upload to anaconda.org
       if: github.event_name == 'push'
       env:
