@@ -23,12 +23,10 @@ jobs:
       with:
         fetch-depth: 0        
     - name: Install the build environment
-      shell: bash
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda install conda-build anaconda-client
     - name: Build the package
-      shell: bash
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda build conda.recipe
@@ -37,8 +35,8 @@ jobs:
       env:
         ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         GITHUB_REF: ${{ github.ref }}
-      shell: bash
       run: |
         source $CONDA/etc/profile.d/conda.sh
+        conda activate base
         [[ "$GITHUB_REF" =~ ^refs/tags/ ]] || export LABEL="--label dev"
         anaconda --verbose --token $ANACONDA_TOKEN upload --user mcg $LABEL conda-bld/*/*.tar.bz2 --force
