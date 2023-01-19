@@ -39,4 +39,4 @@ jobs:
         source $CONDA/etc/profile.d/conda.sh
         conda activate base
         [[ "$GITHUB_REF" =~ ^refs/tags/ ]] || export LABEL="--label dev"
-        anaconda --verbose --token $ANACONDA_TOKEN upload --user mcg $LABEL conda-bld/*/*.tar.bz2 --force
+        anaconda --verbose --token $ANACONDA_TOKEN upload --user mcg $LABEL $CONDA/conda-bld/*/*.tar.bz2 --force
