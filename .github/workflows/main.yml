@@ -35,8 +35,8 @@ jobs:
         mkdir -p $CONDA/build2
         source $CONDA/etc/profile.d/conda.sh
         conda build conda.recipe -m custom_builds.yaml --croot $CONDA/build2
-        ls $CONDA/build2/conda-ident-*test_a*.tar.bz2
-        ls $CONDA/build2/conda-ident-*test_b*.tar.bz2
+        ls $CONDA/build2/*/conda-ident-*test_a*.tar.bz2
+        ls $CONDA/build2/*/conda-ident-*test_b*.tar.bz2
     - name: Upload to anaconda.org
       if: github.event_name == 'push'
       env:
