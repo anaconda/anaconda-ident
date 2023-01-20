@@ -21,7 +21,7 @@ flags = ('', '--disable', '--enable')
 # hardcoded into the package itself
 baked_config = patch.get_baked_token_config()
 client_token_env = os.environ.get('CLIENT_TOKEN')
-if client_token_env is None:
+if not client_token_env:
     if baked_config is not None:
         print('Unexpected baked configuration:', baked_config)
         sys.exit(-1)
