@@ -10,7 +10,7 @@ import types
 import platform
 
 from logging import getLogger
-from os.path import join, expanduser
+from os.path import join, dirname, expanduser, exists
 
 
 log = getLogger(__name__)
@@ -31,6 +31,14 @@ _client_token_formats = {
 def get_random_token(nchar):
     nbytes = (nchar * 6 - 1) // 8 + 1
     return base64.urlsafe_b64encode(os.urandom(nbytes))[:nchar].decode('ascii')
+
+
+@memoize
+def get_baked_token_config():
+    baked_fname = join(dirname(__file__), 'client_token')
+    if exists(baked_fname):
+        with open(baked_fname, 'r') as fp:
+            return fp.read().strip() or None
 
 
 @memoize
@@ -112,6 +120,8 @@ def get_full_token(token_type):
 
 
 def patch_header():
+    if hasattr(CondaHttpAuth, '_old_apply_basic_auth'):
+        return
     CondaHttpAuth._old_apply_basic_auth = CondaHttpAuth._apply_basic_auth
     def _new_apply_basic_auth(request):
         result = CondaHttpAuth._old_apply_basic_auth(request)
@@ -122,17 +132,20 @@ def patch_header():
 
 
 def patch_context():
+    if hasattr(Context, '_old__init__'):
+        return
     Context._old__init__ = Context.__init__
     Context._client_token_type = Context._client_token = None
     def _new_init(self, *args, **kwargs):
         self._old__init__(*args, **kwargs)
-        token = Context._client_token
-        token_type = Context._client_token_type
-        for key, value in self.raw_data.items():
-            if 'client_token' in value:
-                token_type = value['client_token']._raw_value
+        token_type = get_baked_token_config()
+        if token_type is None:
+            for key, value in self.raw_data.items():
+                if 'client_token' in value:
+                    token_type = value['client_token']._raw_value
         if token_type is None:
             token_type = 'default'
+        token = Context._client_token
         if token is None or token_type != Context._client_token_type:
             Context._client_token_type = token_type
             token = Context._client_token = get_full_token(token_type)

@@ -30,6 +30,13 @@ jobs:
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda build conda.recipe
+    - name: Smoke test the baked build
+      run: |
+        source $CONDA/etc/profile.d/conda.sh
+        conda build conda.recipe -m custom_builds.yaml
+        ls $CONDA/conda-bld/*/conda-ident-*test_a*.tar.bz2
+        ls $CONDA/conda-bld/*/conda-ident-*test_b*.tar.bz2
+        rm $CONDA/conda-bld/*/conda-ident-*test_*.tar.bz2
     - name: Upload to anaconda.org
       if: github.event_name == 'push'
       env:

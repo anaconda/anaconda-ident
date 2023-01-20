@@ -3,12 +3,30 @@ import os
 import sys
 import subprocess
 
-nfailed = 0
+from conda_ident import patch
+
+
+# In theory, test_fields = _client_token_formats[param]
+# I'm hardcoding them here so the test doesn't depend on that
+# part of the code, with the exception of "baked" test below.
 test_patterns = (
     ('none', ''), ('default', 'cs'), ('random', 'cs'), ('client', 'cs'), ('session', 's'),
     ('hostname', 'hcs'), ('username', 'ucs'), ('userhost', 'uhcs'), ('org:testme', 'cso'),
     ('c', 'c'), ('s', 's'), ('u', 'u'), ('h', 'h'), ('o:testme', 'o')
 )
+
+
+# In a "baked" configuration, the client token config is
+# hardcoded into the package itself
+baked_config = patch.get_baked_token_config()
+if baked_config is not None:
+    print('Running test with baked configuration:', baked_config)
+    fmt = baked_config.split(':', 1)[0]
+    test_patterns = [(baked_config, patch._client_token_formats.get(fmt, fmt))]
+    print('test_patterns:', test_patterns)
+
+
+nfailed = 0
 max_param = max(max(len(x) for x, _ in test_patterns), len('client_token'))
 max_field = max(max(len(x) for _, x in test_patterns), len('fields'))
 for flag in ('', '--disable', '--enable'):
@@ -36,6 +54,7 @@ for flag in ('', '--disable', '--enable'):
             failed = True
         print('XX' if failed else 'OK', user_agent)
         nfailed += failed
+
 
 print('FAILURES:', nfailed)
 sys.exit(nfailed)
