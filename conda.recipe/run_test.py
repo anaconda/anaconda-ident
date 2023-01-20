@@ -14,22 +14,33 @@ test_patterns = (
     ('hostname', 'hcs'), ('username', 'ucs'), ('userhost', 'uhcs'), ('org:testme', 'cso'),
     ('c', 'c'), ('s', 's'), ('u', 'u'), ('h', 'h'), ('o:testme', 'o')
 )
+flags = ('', '--disable', '--enable')
 
 
 # In a "baked" configuration, the client token config is
 # hardcoded into the package itself
 baked_config = patch.get_baked_token_config()
-if baked_config is not None:
-    print('Running test with baked configuration:', baked_config)
+client_token_env = os.environ.get('CLIENT_TOKEN')
+if client_token_env is None:
+    if baked_config is not None:
+        print('Unexpected baked configuration:', baked_config)
+        sys.exit(-1)
+elif baked_config != client_token_env:
+    print('Expected baked configuration %s, found %s:' % (client_token_env, baked_config))
+    sys.exit(-1)
+else:
+    print('Running with baked configuration:', baked_config)
     fmt = baked_config.split(':', 1)[0]
     test_patterns = [(baked_config, patch._client_token_formats.get(fmt, fmt))]
+    flags = ('',)
     print('test_patterns:', test_patterns)
+    print('')
 
 
 nfailed = 0
 max_param = max(max(len(x) for x, _ in test_patterns), len('client_token'))
 max_field = max(max(len(x) for _, x in test_patterns), len('fields'))
-for flag in ('', '--disable', '--enable'):
+for flag in flags:
     if flag:
         subprocess.run(['python', '-m', 'conda_ident.install', flag])
         value = subprocess.check_output(['python', '-m', 'conda_ident.install', '--status'])
