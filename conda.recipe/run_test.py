@@ -1,4 +1,3 @@
-import re
 import os
 import sys
 import subprocess
@@ -10,9 +9,11 @@ from conda_ident import patch
 # I'm hardcoding them here so the test doesn't depend on that
 # part of the code, with the exception of "baked" test below.
 test_patterns = (
-    ('none', ''), ('default', 'cs'), ('random', 'cs'), ('client', 'cs'), ('session', 's'),
-    ('hostname', 'hcs'), ('username', 'ucs'), ('userhost', 'uhcs'), ('org:testme', 'cso'),
-    ('c', 'c'), ('s', 's'), ('u', 'u'), ('h', 'h'), ('o:testme', 'o')
+    ('none', ''), ('default', 'cse'), 
+    ('username', 'cseu'), ('hostname', 'cseh'), ('environment', 'csen'),
+    ('userenv', 'cseun'), ('userhost', 'cseuh'), ('full', 'cseuhn'),
+    ('default:org1', 'cseo'), ('full:org2', 'cseuhno'), (':org3', 'cseo'),
+    ('c', 'c'), ('s', 's'), ('u', 'u'), ('h', 'h'), ('e', 'e'), ('o:org4', 'o'),
 )
 flags = ('', '--disable', '--enable')
 
@@ -38,6 +39,8 @@ else:
 
 
 nfailed = 0
+saved_values = {}
+all_session_tokens = set()
 max_param = max(max(len(x) for x, _ in test_patterns), len('client_token'))
 max_field = max(max(len(x) for _, x in test_patterns), len('fields'))
 for flag in flags:
@@ -47,23 +50,39 @@ for flag in flags:
         print('')
         print(value.decode('utf-8').strip())
     is_enabled = flag != '--disable'
-    print('{:{w1}} {:{w2}} ?? user-agent'.format('client_token', 'fields', w1=max_param, w2=max_field))
+    print('{:{w1}} {:{w2}} ?? token values'.format(
+          'client_token', 'fields', w1=max_param, w2=max_field))
     print('{} {} -- ----------'.format('-' * max_param, '-' * max_field))
     for param, test_fields in test_patterns:
-        if test_fields and is_enabled:
-            test_re = [c + '/[^ ]+' for c in test_fields]
-            test_re_ua = '^.* ' + ' '.join(test_re) + '$'
-        else:
-            test_re_ua = '^((?! [cso]/).)*$'
-        print('{:{w1}} {:{w2}} '.format(param, test_fields, w1=max_param, w2=max_field), end='')
+        print('{:{w1}} {:{w2}} '.format(
+              param, test_fields, w1=max_param, w2=max_field), end='')
         os.environ['CONDA_CLIENT_TOKEN'] = param
-        value = subprocess.check_output(['conda', 'info'])
-        user_agent = next(v for v in value.decode('utf-8').splitlines() if 'user-agent' in v)
-        user_agent = user_agent.split(' : ', 1)[-1]
-        failed = not re.match(test_re_ua, user_agent)
-        if not failed and is_enabled and 'o' in test_fields:
-            failed = ' o/' + param.rsplit(':', 1)[-1] not in user_agent
-        print('XX' if failed else 'OK', user_agent + '|')
+        proc = subprocess.run(['conda', 'search', '-vvv',
+                              '--override-channels', '-c', 'fakechannel'],
+                              check=False, capture_output=True, text=True)
+        user_agent = [v for v in proc.stderr.splitlines() if 'User-Agent' in v]
+        header = [v for v in proc.stderr.splitlines() if 'X-Conda-Ident' in v]
+        user_agent = user_agent[0].split(':', 1)[-1].strip() if user_agent else ''
+        header = header[0].split(': ', 1)[-1].strip() if header else ''
+        assert user_agent.endswith(header), (user_agent, header)
+        if is_enabled:
+            new_values = {token[0]: token for token in header.split(' ') if token}
+            # Confirm that all of the expected tokens are present
+            failed = set(new_values) != set(test_fields)
+            # Confirm that if the org token, if present, matches the provided value
+            if not failed and 'o' in new_values:
+                failed = new_values['o'][2:] != param.rsplit(':', 1)[-1]
+            # Confirm that the session token, if present, is unique
+            if 's' in new_values:
+                failed = failed or new_values['s'] in all_session_tokens
+                all_session_tokens.add(new_values['s'])
+            # Confirm that any values besides session and org do not change from run to run
+            if not failed:
+                failed = any(v != saved_values.setdefault(k, v)
+                             for k, v in new_values.items() if k not in 'so')
+        else:
+            failed = len(header) > 0
+        print('XX' if failed else 'OK', header)
         nfailed += failed
 
 
