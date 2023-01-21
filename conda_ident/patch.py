@@ -78,11 +78,15 @@ def get_environment_token(ctx):
     return get_random_token(8, hash.digest())
 
 
-@memoize
+# Save the session token in the Context class object to ensure
+# that it is passed to subprocesses
 def get_session_token():
-    _session_token = get_random_token(8)
-    log.debug('Session token generated: %s', _session_token)
-    return _session_token
+    session_token = getattr(Context, 'session_token', None)
+    if session_token is None:
+        session_token = get_random_token(8)
+        log.debug('Session token generated: %s', session_token)
+        Context.session_token = session_token
+    return session_token
 
 
 @memoize
@@ -183,6 +187,7 @@ def _new_apply_basic_auth(request):
     return result
 
 
+get_session_token()
 if not hasattr(Context, 'client_token_type'):
     Context.client_token_type = memoizedproperty(_client_token_type)
 if not hasattr(Context, 'client_token'):

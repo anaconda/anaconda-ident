@@ -50,18 +50,23 @@ for flag in flags:
         print('')
         print(value.decode('utf-8').strip())
     is_enabled = flag != '--disable'
-    print('{:{w1}} {:{w2}} ?? user-agent'.format(
+    print('{:{w1}} {:{w2}} ?? token values'.format(
           'client_token', 'fields', w1=max_param, w2=max_field))
     print('{} {} -- ----------'.format('-' * max_param, '-' * max_field))
     for param, test_fields in test_patterns:
         print('{:{w1}} {:{w2}} '.format(
               param, test_fields, w1=max_param, w2=max_field), end='')
         os.environ['CONDA_CLIENT_TOKEN'] = param
-        value = subprocess.check_output(['conda', 'info'])
-        user_agent = next(v for v in value.decode('utf-8').splitlines() if 'user-agent' in v)
-        user_agent = user_agent.split(' : ', 1)[-1]
-        new_values = {token[0]: token for token in user_agent.split(' ') if token[1] == '/'}
+        proc = subprocess.run(['conda', 'search', '-vvv',
+                              '--override-channels', '-c', 'fakechannel'],
+                              check=False, capture_output=True, text=True)
+        user_agent = [v for v in proc.stderr.splitlines() if 'User-Agent' in v]
+        header = [v for v in proc.stderr.splitlines() if 'X-Conda-Ident' in v]
+        user_agent = user_agent[0].split(':', 1)[-1].strip() if user_agent else ''
+        header = header[0].split(': ', 1)[-1].strip() if header else ''
+        assert user_agent.endswith(header), (user_agent, header)
         if is_enabled:
+            new_values = {token[0]: token for token in header.split(' ') if token}
             # Confirm that all of the expected tokens are present
             failed = set(new_values) != set(test_fields)
             # Confirm that if the org token, if present, matches the provided value
@@ -76,8 +81,8 @@ for flag in flags:
                 failed = any(v != saved_values.setdefault(k, v)
                              for k, v in new_values.items() if k not in 'so')
         else:
-            failed = len(new_values) > 0
-        print('XX' if failed else 'OK', user_agent)
+            failed = len(header) > 0
+        print('XX' if failed else 'OK', header)
         nfailed += failed
 
 
