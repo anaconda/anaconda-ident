@@ -1,8 +1,6 @@
 import base64
 import getpass
 import os
-import re
-import types
 import platform
 
 from conda.base.context import Context, context, env_name
@@ -46,7 +44,6 @@ def get_baked_token_config():
 def get_client_token():
     cid_file = join(expanduser('~/.conda'), 'client_token')
     if os.path.exists(cid_file):
-        try_save = False
         try:
             # Use just the first line of the file, if it exists
             _client_token = ''.join(open(cid_file).read().splitlines()[:1])
@@ -128,7 +125,6 @@ def _client_token_type(ctx):
     token_type = ':'.join(fmt_parts)
     log.debug('Final token config: %s', token_type)
     return token_type
-Context.client_token_type = memoizedproperty(_client_token_type)
 
 
 def _client_token(ctx):
@@ -158,18 +154,12 @@ def _client_token(ctx):
     Context._client_token = result
     log.debug('Full client token: %s', result)
     return result
-Context.client_token = memoizedproperty(_client_token)
 
 
 def _user_agent(ctx):
     token = ctx.client_token
     result = ctx._old_user_agent
     return result + ' ' + token if token else result
-if not hasattr(Context, '_old_user_agent'):
-    Context._old_user_agent = Context.user_agent
-    # The leading underscore ensures that this is stored in
-    # the cache in a different place than the original
-    Context.user_agent = memoizedproperty(_user_agent)
 
 
 def _new_apply_basic_auth(request):
@@ -178,6 +168,17 @@ def _new_apply_basic_auth(request):
     if token:
         request.headers['X-Conda-Ident'] = token
     return result
+
+
+if not hasattr(Context, 'client_token_type'):
+    Context.client_token_type = memoizedproperty(_client_token_type)
+if not hasattr(Context, 'client_token'):
+    Context.client_token = memoizedproperty(_client_token)
+if not hasattr(Context, '_old_user_agent'):
+    Context._old_user_agent = Context.user_agent
+    # The leading underscore ensures that this is stored in
+    # the cache in a different place than the original
+    Context.user_agent = memoizedproperty(_user_agent)
 if not hasattr(CondaHttpAuth, '_old_apply_basic_auth'):
     CondaHttpAuth._old_apply_basic_auth = CondaHttpAuth._apply_basic_auth
     CondaHttpAuth._apply_basic_auth = staticmethod(_new_apply_basic_auth)

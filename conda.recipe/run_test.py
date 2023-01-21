@@ -1,4 +1,3 @@
-import re
 import os
 import sys
 import subprocess
@@ -10,11 +9,12 @@ from conda_ident import patch
 # I'm hardcoding them here so the test doesn't depend on that
 # part of the code, with the exception of "baked" test below.
 test_patterns = (
-    ('none', ''), ('default', 'cs'), ('random', 'cs'), ('client', 'cs'), ('session', 's'),
+    ('none', ''), ('default', 'cs'), ('random', 'cs'),
+    ('client', 'cs'), ('session', 's'),
     ('hostname', 'csh'), ('username', 'csu'), ('userhost', 'csuh'), ('org:testme', 'cso'),
-    ('full', 'csuhe'), ('full:testme', 'csuheo'),
-    ('c', 'c'), ('s', 's'), ('u', 'u'), ('h', 'h'), ('e', 'e'),
-    ('o:testme', 'o'), (':testme', 'o')
+    ('full', 'csuhe'),
+    ('c', 'c'), ('s', 's'), ('u', 'u'), ('h', 'h'), ('e', 'e'), ('o', 'cs'),
+    ('default:org1', 'cso'), ('full:org2', 'csuheo'), ('o:org3', 'o'), (':org4', 'cso')
 )
 flags = ('', '--disable', '--enable')
 
@@ -40,6 +40,8 @@ else:
 
 
 nfailed = 0
+saved_values = {}
+all_session_tokens = set()
 max_param = max(max(len(x) for x, _ in test_patterns), len('client_token'))
 max_field = max(max(len(x) for _, x in test_patterns), len('fields'))
 for flag in flags:
@@ -49,22 +51,33 @@ for flag in flags:
         print('')
         print(value.decode('utf-8').strip())
     is_enabled = flag != '--disable'
-    print('{:{w1}} {:{w2}} ?? user-agent'.format('client_token', 'fields', w1=max_param, w2=max_field))
+    print('{:{w1}} {:{w2}} ?? user-agent'.format(
+          'client_token', 'fields', w1=max_param, w2=max_field))
     print('{} {} -- ----------'.format('-' * max_param, '-' * max_field))
     for param, test_fields in test_patterns:
-        if test_fields and is_enabled:
-            test_re = [c + '/[^ ]+' for c in test_fields]
-            test_re_ua = '^.* ' + ' '.join(test_re) + '$'
-        else:
-            test_re_ua = '^((?! [cso]/).)*$'
-        print('{:{w1}} {:{w2}} '.format(param, test_fields, w1=max_param, w2=max_field), end='')
+        print('{:{w1}} {:{w2}} '.format(
+              param, test_fields, w1=max_param, w2=max_field), end='')
         os.environ['CONDA_CLIENT_TOKEN'] = param
         value = subprocess.check_output(['conda', 'info'])
         user_agent = next(v for v in value.decode('utf-8').splitlines() if 'user-agent' in v)
         user_agent = user_agent.split(' : ', 1)[-1]
-        failed = not re.match(test_re_ua, user_agent)
-        if not failed and is_enabled and 'o' in test_fields:
-            failed = ' o/' + param.rsplit(':', 1)[-1] not in user_agent
+        new_values = {token[0]: token for token in user_agent.split(' ') if token[1] == '/'}
+        if is_enabled:
+            # Confirm that all of the expected tokens are present
+            failed = set(new_values) != set(test_fields)
+            # Confirm that if the org token, if present, matches the provided value
+            if not failed and 'o' in new_values:
+                failed = new_values['o'][2:] != param.rsplit(':', 1)[-1]
+            # Confirm that the session token, if present, is unique
+            if 's' in new_values:
+                failed = failed or new_values['s'] in all_session_tokens
+                all_session_tokens.add(new_values['s'])
+            # Confirm that any values besides session and org do not change from run to run
+            if not failed:
+                failed = any(v != saved_values.setdefault(k, v)
+                             for k, v in new_values.items() if k not in 'so')
+        else:
+            failed = len(new_values) > 0
         print('XX' if failed else 'OK', user_agent)
         nfailed += failed
 
