@@ -8,6 +8,16 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      token_config:
+        description: 'Client token configuration string'
+        default: 'random'
+        required: true
+      build_string:
+        description: 'Build string'
+        default: 'custom'
+        required: true
 jobs:
   package:
     defaults:
@@ -26,17 +36,27 @@ jobs:
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda install conda-build anaconda-client
-    - name: Build the package
+    - name: Build the package (standard)
+      if: github.event_name != 'workflow_dispatch'
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda build conda.recipe
+    - name: Build the package (custom)
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        source $CONDA/etc/profile.d/conda.sh
+        cfg=${{ github.event.inputs.token_config }}
+        str=${{ github.event.inputs.build_string }}
+        variant='{"client_token":"'$cfg'{","custom_build":"'$str'"}'
+        conda build conda.recipe --variant "$variant"
     - name: Smoke test the baked build
+      if: github.event_name != 'workflow_dispatch'
       run: |
         mkdir -p $CONDA/build2
         source $CONDA/etc/profile.d/conda.sh
         conda build conda.recipe -m custom_builds.yaml --croot $CONDA/build2
     - name: Upload to anaconda.org
-      if: github.event_name == 'push'
+      if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
       env:
         ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         GITHUB_REF: ${{ github.ref }}
