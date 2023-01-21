@@ -47,8 +47,8 @@ jobs:
         source $CONDA/etc/profile.d/conda.sh
         cfg=${{ github.event.inputs.token_config }}
         str=${{ github.event.inputs.build_string }}
-        variant='{"client_token":"'$cfg'{","custom_build":"'$str'"}'
-        conda build conda.recipe --variant "$variant"
+        variant='{"client_token":"'$cfg'","custom_build":"'$str'"}'
+        conda build conda.recipe --variants "$variant"
     - name: Smoke test the baked build
       if: github.event_name != 'workflow_dispatch'
       run: |
