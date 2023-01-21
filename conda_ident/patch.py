@@ -2,6 +2,7 @@ import base64
 import getpass
 import os
 import platform
+import hashlib
 
 from conda.base.context import Context, context, env_name
 from conda.gateways.connection.session import CondaHttpAuth
@@ -15,21 +16,20 @@ log = getLogger(__name__)
 
 _client_token_formats = {
     'none': '',
-    'default': 'cs',
-    'random': 'cs',
-    'client': 'cs',
-    'session': 's',
-    'username': 'csu',
-    'hostname': 'csh',
-    'userhost': 'csuh',
-    'full': 'csuhe',
-    'org': 'cso'
+    'default': 'cse',
+    'username': 'cseu',
+    'hostname': 'cseh',
+    'environment': 'csen',
+    'userenv': 'cseun',
+    'userhost': 'cseuh',
+    'full': 'cseuhn'
 }
 
 
-def get_random_token(nchar):
-    nbytes = (nchar * 6 - 1) // 8 + 1
-    return base64.urlsafe_b64encode(os.urandom(nbytes))[:nchar].decode('ascii')
+def get_random_token(nchar, bytes=None):
+    if bytes is None:
+        bytes = os.urandom((nchar * 6 - 1) // 8 + 1)
+    return base64.urlsafe_b64encode(bytes)[:nchar].decode('ascii')
 
 
 @memoize
@@ -43,24 +43,39 @@ def get_baked_token_config():
 @memoize
 def get_client_token():
     cid_file = join(expanduser('~/.conda'), 'client_token')
+    client_token = ''
     if os.path.exists(cid_file):
         try:
             # Use just the first line of the file, if it exists
-            _client_token = ''.join(open(cid_file).read().splitlines()[:1])
-            log.debug('Retrieved client token: %s', _client_token)
+            client_token = ''.join(open(cid_file).read().splitlines()[:1])
+            log.debug('Retrieved client token: %s', client_token)
         except Exception as exc:
             log.debug('Unexpected error reading client token: %s', exc)
-    else:
-        _client_token = get_random_token(8)
+    if len(client_token) < 64:
+        if len(client_token) > 0:
+            log.debug('Creating longer token for hashing')
+        client_token = get_random_token(64)
         try:
             with open(cid_file, 'w') as fp:
-                fp.write(_client_token)
-            log.debug('Generated new client token: %s', _client_token)
+                fp.write(client_token)
+            log.debug('Generated new client token: %s', client_token)
             log.debug('Client token saved: %s', cid_file)
         except Exception as exc:
             log.debug('Unexpected error writing client token file: %s', exc)
-            _client_token = ''
-    return _client_token
+            client_token = ''
+    return client_token
+
+
+def get_environment_token(ctx):
+    try:
+        value = ctx.target_prefix
+    except Exception:
+        log.debug('ctx.target_prefix raised an exception')
+        return None
+    # Use the client token as salt for the hash function to
+    # ensure the receiver cannot decode the environment name
+    hash = hashlib.sha1((get_client_token() + value).encode('utf-8'))
+    return get_random_token(8, hash.digest())
 
 
 @memoize
@@ -86,16 +101,12 @@ def get_hostname():
     return value
 
 
-def get_environment(ctx):
+def get_environment_name(ctx):
     try:
-        value = env_name(ctx.target_prefix)
+        return basename(env_name(ctx.target_prefix))
     except Exception:
         log.debug('ctx.target_prefix raised an exception')
         return None
-    vbase = basename(value)
-    if value != vbase:
-        value = value.replace(expanduser('~') + os.sep, '~' + os.sep, 1)
-    return vbase if vbase == value else '%s (%s)' % (vbase, value)
 
 
 def _client_token_type(ctx):
@@ -114,14 +125,14 @@ def _client_token_type(ctx):
     fmt = _client_token_formats.get(fmt_parts[0], fmt_parts[0])
     if len(fmt_parts) > 1:
         if not fmt:
-            fmt = 'cso'
+            fmt = 'cseo'
         elif 'o' not in fmt:
             fmt += 'o'
     elif fmt == 'o':
-        fmt = 'cs'
+        fmt = 'cse'
     elif 'o' in fmt:
         fmt = fmt.replace('o', '')
-    fmt_parts[0] = ''.join(c for c in fmt if c in 'csuhoe')
+    fmt_parts[0] = ''.join(c for c in fmt if c in 'csuhoen')
     token_type = ':'.join(fmt_parts)
     log.debug('Final token config: %s', token_type)
     return token_type
@@ -132,7 +143,7 @@ def _client_token(ctx):
     fmt_parts = ctx.client_token_type.split(':', 1)
     for code in fmt_parts[0]:
         if code == 'c':
-            value = get_client_token()
+            value = get_client_token()[:8]
         elif code == 's':
             value = get_session_token()
         elif code == 'u':
@@ -142,7 +153,9 @@ def _client_token(ctx):
         elif code == 'o':
             value = fmt_parts[1]
         elif code == 'e':
-            value = get_environment(ctx)
+            value = get_environment_token(ctx)
+        elif code == 'n':
+            value = get_environment_name(ctx)
         else:
             log.warning('Unexpected client token code: %s', code)
             value = None

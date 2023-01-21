@@ -9,12 +9,11 @@ from conda_ident import patch
 # I'm hardcoding them here so the test doesn't depend on that
 # part of the code, with the exception of "baked" test below.
 test_patterns = (
-    ('none', ''), ('default', 'cs'), ('random', 'cs'),
-    ('client', 'cs'), ('session', 's'),
-    ('hostname', 'csh'), ('username', 'csu'), ('userhost', 'csuh'), ('org:testme', 'cso'),
-    ('full', 'csuhe'),
-    ('c', 'c'), ('s', 's'), ('u', 'u'), ('h', 'h'), ('e', 'e'), ('o', 'cs'),
-    ('default:org1', 'cso'), ('full:org2', 'csuheo'), ('o:org3', 'o'), (':org4', 'cso')
+    ('none', ''), ('default', 'cse'), 
+    ('username', 'cseu'), ('hostname', 'cseh'), ('environment', 'csen'),
+    ('userenv', 'cseun'), ('userhost', 'cseuh'), ('full', 'cseuhn'),
+    ('default:org1', 'cseo'), ('full:org2', 'cseuhno'), (':org3', 'cseo'),
+    ('c', 'c'), ('s', 's'), ('u', 'u'), ('h', 'h'), ('e', 'e'), ('o:org4', 'o'),
 )
 flags = ('', '--disable', '--enable')
 
