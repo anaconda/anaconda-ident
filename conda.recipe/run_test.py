@@ -61,9 +61,9 @@ for flag in flags:
         user_agent = next(v for v in value.decode('utf-8').splitlines() if 'user-agent' in v)
         user_agent = user_agent.split(' : ', 1)[-1]
         failed = not re.match(test_re_ua, user_agent)
-        if failed or is_enabled and 'o' in test_fields and ' o/testme' not in user_agent:
-            failed = True
-        print('XX' if failed else 'OK', user_agent)
+        if not failed and is_enabled and 'o' in test_fields:
+            failed = ' o/' + param.rsplit(':', 1)[-1] not in user_agent
+        print('XX' if failed else 'OK', user_agent + '|')
         nfailed += failed
 
 
