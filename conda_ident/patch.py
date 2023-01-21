@@ -1,7 +1,3 @@
-from conda.base.context import Context, context
-from conda.gateways.connection.session import CondaHttpAuth
-from conda.auxlib.decorators import memoize
-
 import base64
 import getpass
 import os
@@ -9,8 +5,12 @@ import re
 import types
 import platform
 
+from conda.base.context import Context, context, env_name
+from conda.gateways.connection.session import CondaHttpAuth
+from conda.auxlib.decorators import memoize, memoizedproperty
+
 from logging import getLogger
-from os.path import join, dirname, expanduser, exists
+from os.path import join, dirname, basename, expanduser, exists
 
 
 log = getLogger(__name__)
@@ -21,9 +21,10 @@ _client_token_formats = {
     'random': 'cs',
     'client': 'cs',
     'session': 's',
-    'username': 'ucs',
-    'hostname': 'hcs',
-    'userhost': 'uhcs',
+    'username': 'csu',
+    'hostname': 'csh',
+    'userhost': 'csuh',
+    'full': 'csuhe',
     'org': 'cso'
 }
 
@@ -88,18 +89,52 @@ def get_hostname():
     return value
 
 
-def get_full_token(token_type):
+def get_environment(ctx):
+    try:
+        value = env_name(ctx.target_prefix)
+    except Exception:
+        log.debug('ctx.target_prefix raised an exception')
+        return None
+    vbase = basename(value)
+    if value != vbase:
+        value = value.replace(expanduser('~') + os.sep, '~' + os.sep, 1)
+    return vbase if vbase == value else '%s (%s)' % (vbase, value)
+
+
+def _client_token_type(ctx):
+    token_type = get_baked_token_config()
+    if token_type:
+        log.debug('Hardcoded token config: %s', token_type)
+    if token_type is None:
+        for key, value in ctx.raw_data.items():
+            if 'client_token' in value:
+                token_type = value['client_token']._raw_value
+                log.debug('Token config from context: %s', token_type)
+    if token_type is None:
+        log.debug('Selecting default token config')
+        token_type = 'default'
     fmt_parts = token_type.split(':', 1)
     fmt = _client_token_formats.get(fmt_parts[0], fmt_parts[0])
-    if len(fmt_parts) > 1 and 'o' not in fmt:
-        log.debug('Adding o flag')
-        fmt += 'o'
-    if len(fmt_parts) <= 1 and 'o' in fmt:
+    if len(fmt_parts) > 1:
+        if not fmt:
+            fmt = 'cso'
+        elif 'o' not in fmt:
+            fmt += 'o'
+    elif fmt == 'o':
+        fmt = 'cs'
+    elif 'o' in fmt:
         fmt = fmt.replace('o', '')
-        log.debug('Removing o flag')
-    log.debug('Final ident string: %s', fmt)
+    fmt_parts[0] = ''.join(c for c in fmt if c in 'csuhoe')
+    token_type = ':'.join(fmt_parts)
+    log.debug('Final token config: %s', token_type)
+    return token_type
+Context.client_token_type = memoizedproperty(_client_token_type)
+
+
+def _client_token(ctx):
     parts = []
-    for code in fmt:
+    fmt_parts = ctx.client_token_type.split(':', 1)
+    for code in fmt_parts[0]:
         if code == 'c':
             value = get_client_token()
         elif code == 's':
@@ -110,54 +145,39 @@ def get_full_token(token_type):
             value = get_hostname()
         elif code == 'o':
             value = fmt_parts[1]
+        elif code == 'e':
+            value = get_environment(ctx)
         else:
+            log.warning('Unexpected client token code: %s', code)
             value = None
         if value:
             parts.append(code + '/' + value)
     result = ' '.join(parts)
-    log.debug('Client token: %s', result)
+    # Save the client token as a class attribute as well
+    # so that CondaHttpAuth can find it
+    Context._client_token = result
+    log.debug('Full client token: %s', result)
     return result
+Context.client_token = memoizedproperty(_client_token)
 
 
-def patch_header():
-    if hasattr(CondaHttpAuth, '_old_apply_basic_auth'):
-        return
+def _user_agent(ctx):
+    token = ctx.client_token
+    result = ctx._old_user_agent
+    return result + ' ' + token if token else result
+if not hasattr(Context, '_old_user_agent'):
+    Context._old_user_agent = Context.user_agent
+    # The leading underscore ensures that this is stored in
+    # the cache in a different place than the original
+    Context.user_agent = memoizedproperty(_user_agent)
+
+
+def _new_apply_basic_auth(request):
+    result = CondaHttpAuth._old_apply_basic_auth(request)
+    token = context.client_token
+    if token:
+        request.headers['X-Conda-Ident'] = token
+    return result
+if not hasattr(CondaHttpAuth, '_old_apply_basic_auth'):
     CondaHttpAuth._old_apply_basic_auth = CondaHttpAuth._apply_basic_auth
-    def _new_apply_basic_auth(request):
-        result = CondaHttpAuth._old_apply_basic_auth(request)
-        if getattr(Context, '_client_token', None):
-            request.headers['X-Conda-Ident'] = Context._client_token
-        return result
     CondaHttpAuth._apply_basic_auth = staticmethod(_new_apply_basic_auth)
-
-
-def patch_context():
-    if hasattr(Context, '_old__init__'):
-        return
-    Context._old__init__ = Context.__init__
-    Context._client_token_type = Context._client_token = None
-    def _new_init(self, *args, **kwargs):
-        self._old__init__(*args, **kwargs)
-        token_type = get_baked_token_config()
-        if token_type is None:
-            for key, value in self.raw_data.items():
-                if 'client_token' in value:
-                    token_type = value['client_token']._raw_value
-        if token_type is None:
-            token_type = 'default'
-        token = Context._client_token
-        if token is None or token_type != Context._client_token_type:
-            Context._client_token_type = token_type
-            token = Context._client_token = get_full_token(token_type)
-        if token:
-            new_user_agent = self.user_agent + ' ' + token
-            self._cache_['__user_agent'] = new_user_agent
-    Context.__init__ = _new_init
-    context.__init__ = types.MethodType(_new_init, context)
-
-
-try:
-    patch_context()
-    patch_header()
-except Exception as exc:
-    log.warning('conda_ident failed: %s', exc)

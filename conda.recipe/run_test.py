@@ -11,8 +11,10 @@ from conda_ident import patch
 # part of the code, with the exception of "baked" test below.
 test_patterns = (
     ('none', ''), ('default', 'cs'), ('random', 'cs'), ('client', 'cs'), ('session', 's'),
-    ('hostname', 'hcs'), ('username', 'ucs'), ('userhost', 'uhcs'), ('org:testme', 'cso'),
-    ('c', 'c'), ('s', 's'), ('u', 'u'), ('h', 'h'), ('o:testme', 'o')
+    ('hostname', 'csh'), ('username', 'csu'), ('userhost', 'csuh'), ('org:testme', 'cso'),
+    ('full', 'csuhe'), ('full:testme', 'csuheo'),
+    ('c', 'c'), ('s', 's'), ('u', 'u'), ('h', 'h'), ('e', 'e'),
+    ('o:testme', 'o'), (':testme', 'o')
 )
 flags = ('', '--disable', '--enable')
 
@@ -63,7 +65,7 @@ for flag in flags:
         failed = not re.match(test_re_ua, user_agent)
         if not failed and is_enabled and 'o' in test_fields:
             failed = ' o/' + param.rsplit(':', 1)[-1] not in user_agent
-        print('XX' if failed else 'OK', user_agent + '|')
+        print('XX' if failed else 'OK', user_agent)
         nfailed += failed
 
 
