@@ -1,6 +1,6 @@
 client_token:
 - userhost
-- random
+- default
 - uso:testorg1
 custom_build:
 - test_a

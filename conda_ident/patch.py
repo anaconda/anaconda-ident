@@ -32,6 +32,7 @@ def get_random_token(nchar, bytes=None):
     return base64.urlsafe_b64encode(bytes)[:nchar].decode('ascii')
 
 
+# Separate this out so it can be called in testing
 @memoize
 def get_baked_token_config():
     baked_fname = join(dirname(__file__), 'client_token')
@@ -40,8 +41,13 @@ def get_baked_token_config():
             return fp.read().strip() or None
 
 
-@memoize
-def get_client_token():
+# Save the raw client and token data as Context class
+# attributes to ensure they are passed between subprocesses
+def initialize_raw_tokens():
+    if hasattr(Context, 'session_token'):
+        return
+    Context.session_token = get_random_token(8)
+    Context.raw_client_token = None
     cid_file = join(expanduser('~/.conda'), 'client_token')
     client_token = ''
     if os.path.exists(cid_file):
@@ -63,7 +69,7 @@ def get_client_token():
         except Exception as exc:
             log.debug('Unexpected error writing client token file: %s', exc)
             client_token = ''
-    return client_token
+    Context.raw_client_token = client_token
 
 
 def get_environment_token(ctx):
@@ -72,21 +78,16 @@ def get_environment_token(ctx):
     except Exception:
         log.debug('ctx.target_prefix raised an exception')
         return None
+    # Do not create an environment token if we don't have
+    # enough salt to hash it
+    if len(Context.raw_client_token) < 64:
+        log.debug('raw_client_token not long enough to hash')
+        return None
     # Use the client token as salt for the hash function to
     # ensure the receiver cannot decode the environment name
-    hash = hashlib.sha1((get_client_token() + value).encode('utf-8'))
+    hashval = Context.raw_client_token + value
+    hash = hashlib.sha1(hashval.encode('utf-8'))
     return get_random_token(8, hash.digest())
-
-
-# Save the session token in the Context class object to ensure
-# that it is passed to subprocesses
-def get_session_token():
-    session_token = getattr(Context, 'session_token', None)
-    if session_token is None:
-        session_token = get_random_token(8)
-        log.debug('Session token generated: %s', session_token)
-        Context.session_token = session_token
-    return session_token
 
 
 @memoize
@@ -147,9 +148,9 @@ def _client_token(ctx):
     fmt_parts = ctx.client_token_type.split(':', 1)
     for code in fmt_parts[0]:
         if code == 'c':
-            value = get_client_token()[:8]
+            value = Context.raw_client_token[:8]
         elif code == 's':
-            value = get_session_token()
+            value = Context.session_token
         elif code == 'u':
             value = get_username()
         elif code == 'h':
@@ -187,7 +188,7 @@ def _new_apply_basic_auth(request):
     return result
 
 
-get_session_token()
+initialize_raw_tokens()
 if not hasattr(Context, 'client_token_type'):
     Context.client_token_type = memoizedproperty(_client_token_type)
 if not hasattr(Context, 'client_token'):
