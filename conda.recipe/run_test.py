@@ -13,7 +13,7 @@ test_patterns = (
     ('username', 'cseu'), ('hostname', 'cseh'), ('environment', 'csen'),
     ('userenv', 'cseun'), ('userhost', 'cseuh'), ('hostenv', 'csehn'), ('full', 'cseuhn'),
     ('default:org1', 'cseo'), ('full:org2', 'cseuhno'), (':org3', 'cseo'), ('none:org4', 'o'),
-    ('c', 'c'), ('s', 's'), ('u', 'u'), ('h', 'h'), ('e', 'e'), ('o:org4', 'o'),
+    ('c', 'c'), ('s', 's'), ('u', 'u'), ('h', 'h'), ('e', 'e'), ('o:org4', 'o'), ('o', '')
 )
 flags = ('', '--disable', '--enable')
 
