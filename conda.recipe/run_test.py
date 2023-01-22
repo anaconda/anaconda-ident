@@ -11,9 +11,9 @@ from conda_ident import patch
 test_patterns = (
     ('none', ''), ('default', 'cse'), 
     ('username', 'cseu'), ('hostname', 'cseh'), ('environment', 'csen'),
-    ('userenv', 'cseun'), ('userhost', 'cseuh'), ('full', 'cseuhn'),
-    ('default:org1', 'cseo'), ('full:org2', 'cseuhno'), (':org3', 'cseo'),
-    ('c', 'c'), ('s', 's'), ('u', 'u'), ('h', 'h'), ('e', 'e'), ('o:org4', 'o'),
+    ('userenv', 'cseun'), ('userhost', 'cseuh'), ('hostenv', 'csehn'), ('full', 'cseuhn'),
+    ('default:org1', 'cseo'), ('full:org2', 'cseuhno'), (':org3', 'cseo'), ('none:org4', 'o'),
+    ('c', 'c'), ('s', 's'), ('u', 'u'), ('h', 'h'), ('e', 'e'), ('o:org4', 'o'), ('o', '')
 )
 flags = ('', '--disable', '--enable')
 

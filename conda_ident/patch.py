@@ -22,6 +22,7 @@ _client_token_formats = {
     'environment': 'csen',
     'userenv': 'cseun',
     'userhost': 'cseuh',
+    'hostenv': 'csehn',
     'full': 'cseuhn'
 }
 
@@ -129,13 +130,12 @@ def _client_token_type(ctx):
     fmt_parts = token_type.split(':', 1)
     fmt = _client_token_formats.get(fmt_parts[0], fmt_parts[0])
     if len(fmt_parts) > 1:
-        if not fmt:
+        if not fmt and fmt_parts[0] != 'none':
             fmt = 'cseo'
         elif 'o' not in fmt:
             fmt += 'o'
-    elif fmt == 'o':
-        fmt = 'cse'
     elif 'o' in fmt:
+        log.warning('Expected an organization string; none provided.')
         fmt = fmt.replace('o', '')
     fmt_parts[0] = ''.join(c for c in fmt if c in 'csuhoen')
     token_type = ':'.join(fmt_parts)
