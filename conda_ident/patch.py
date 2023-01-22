@@ -22,6 +22,7 @@ _client_token_formats = {
     'environment': 'csen',
     'userenv': 'cseun',
     'userhost': 'cseuh',
+    'hostenv': 'csehn',
     'full': 'cseuhn'
 }
 
