@@ -167,9 +167,6 @@ def _client_token(ctx):
         if value:
             parts.append(code + '/' + value)
     result = ' '.join(parts)
-    # Save the client token as a class attribute as well
-    # so that CondaHttpAuth can find it
-    Context._client_token = result
     log.debug('Full client token: %s', result)
     return result
 
@@ -196,7 +193,7 @@ if not hasattr(Context, 'client_token'):
 if not hasattr(Context, '_old_user_agent'):
     Context._old_user_agent = Context.user_agent
     # The leading underscore ensures that this is stored in
-    # the cache in a different place than the original
+    # the cache in a different place than the original user agent
     Context.user_agent = memoizedproperty(_user_agent)
 if not hasattr(CondaHttpAuth, '_old_apply_basic_auth'):
     CondaHttpAuth._old_apply_basic_auth = CondaHttpAuth._apply_basic_auth
