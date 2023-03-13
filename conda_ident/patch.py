@@ -4,9 +4,16 @@ import os
 import platform
 import hashlib
 
-from conda.base.context import Context, context, env_name, ParameterLoader, PrimitiveParameter
+from conda.base.context import (
+    Context,
+    context,
+    env_name,
+    ParameterLoader,
+    PrimitiveParameter,
+)
 from conda.gateways.connection.session import CondaHttpAuth
 from conda.auxlib.decorators import memoize, memoizedproperty
+from conda.cli import install as cli_install
 
 from logging import getLogger
 from os.path import join, dirname, basename, expanduser, exists
@@ -14,190 +21,212 @@ from os.path import join, dirname, basename, expanduser, exists
 
 log = getLogger(__name__)
 
+
 _client_token_formats = {
-    'none': '',
-    'default': 'cse',
-    'username': 'cseu',
-    'hostname': 'cseh',
-    'environment': 'csen',
-    'userenv': 'cseun',
-    'userhost': 'cseuh',
-    'hostenv': 'csehn',
-    'full': 'cseuhn'
+    "none": "",
+    "default": "cse",
+    "username": "cseu",
+    "hostname": "cseh",
+    "environment": "csen",
+    "userenv": "cseun",
+    "userhost": "cseuh",
+    "hostenv": "csehn",
+    "full": "cseuhn",
 }
 
 
 def get_random_token(nchar, bytes=None):
     if bytes is None:
         bytes = os.urandom((nchar * 6 - 1) // 8 + 1)
-    return base64.urlsafe_b64encode(bytes)[:nchar].decode('ascii')
+    return base64.urlsafe_b64encode(bytes)[:nchar].decode("ascii")
 
 
 # Separate this out so it can be called in testing
-@memoize
 def get_baked_token_config():
-    baked_fname = join(dirname(__file__), 'client_token')
+    baked_fname = join(dirname(__file__), "client_token")
     if exists(baked_fname):
-        with open(baked_fname, 'r') as fp:
+        with open(baked_fname, "r") as fp:
             return fp.read().strip() or None
 
 
-# Save the raw client and token data as Context class
-# attributes to ensure they are passed between subprocesses
 def initialize_raw_tokens():
-    if hasattr(Context, 'session_token'):
-        return
     Context.session_token = get_random_token(8)
     Context.client_token_raw = None
-    cid_file = join(expanduser('~/.conda'), 'client_token')
-    client_token = ''
+    cid_file = join(expanduser("~/.conda"), "client_token")
+    client_token = ""
     if os.path.exists(cid_file):
         try:
             # Use just the first line of the file, if it exists
-            client_token = ''.join(open(cid_file).read().splitlines()[:1])
-            log.debug('Retrieved client token: %s', client_token)
+            client_token = "".join(open(cid_file).read().splitlines()[:1])
+            log.debug("Retrieved client token: %s", client_token)
         except Exception as exc:
-            log.debug('Unexpected error reading client token: %s', exc)
+            log.debug("Unexpected error reading client token: %s", exc)
     if len(client_token) < 64:
         if len(client_token) > 0:
-            log.debug('Creating longer token for hashing')
+            log.debug("Creating longer token for hashing")
         client_token = get_random_token(64)
         try:
-            with open(cid_file, 'w') as fp:
+            with open(cid_file, "w") as fp:
                 fp.write(client_token)
-            log.debug('Generated new client token: %s', client_token)
-            log.debug('Client token saved: %s', cid_file)
+            log.debug("Generated new client token: %s", client_token)
+            log.debug("Client token saved: %s", cid_file)
         except Exception as exc:
-            log.debug('Unexpected error writing client token file: %s', exc)
-            client_token = ''
+            log.debug("Unexpected error writing client token file: %s", exc)
+            client_token = ""
     Context.client_token_raw = client_token
 
 
-def get_environment_token(ctx):
+def get_environment_prefix():
     try:
-        value = ctx.target_prefix
+        return context.checked_prefix or context.target_prefix
     except Exception:
-        log.debug('ctx.target_prefix raised an exception')
+        pass
+
+
+def get_environment_name():
+    target_prefix = get_environment_prefix()
+    return basename(env_name(target_prefix)) if target_prefix else None
+
+
+def get_environment_token():
+    value = get_environment_prefix()
+    if value is None:
         return None
     # Do not create an environment token if we don't have
     # enough salt to hash it
     if len(Context.client_token_raw) < 64:
-        log.debug('client_token_raw not long enough to hash')
+        log.debug("client_token_raw not long enough to hash")
         return None
     # Use the client token as salt for the hash function to
     # ensure the receiver cannot decode the environment name
     hashval = Context.client_token_raw + value
-    hash = hashlib.sha1(hashval.encode('utf-8'))
+    hash = hashlib.sha1(hashval.encode("utf-8"))
     return get_random_token(8, hash.digest())
 
 
-@memoize
 def get_username():
     try:
         return getpass.getuser()
     except Exception as exc:
-        log.debug('getpass.getuser raised an exception: %s' % exc)
+        log.debug("getpass.getuser raised an exception: %s" % exc)
 
 
-@memoize
 def get_hostname():
     value = platform.node()
     if not value:
-        log.debug('platform.node returned an empty value')
+        log.debug("platform.node returned an empty value")
     return value
 
 
-def get_environment_name(ctx):
-    try:
-        return basename(env_name(ctx.target_prefix))
-    except Exception:
-        log.debug('ctx.target_prefix raised an exception')
-        return None
-
-
-def _client_token_type(ctx):
+def client_token_type():
     token_type = get_baked_token_config()
     if token_type:
-        log.debug('Hardcoded token config: %s', token_type)
+        log.debug("Hardcoded token config: %s", token_type)
     if token_type is None:
-        token_type = ctx.client_token
+        token_type = context.client_token
         if token_type:
-            log.debug('Token config from context: %s', token_type)
+            log.debug("Token config from context: %s", token_type)
     if token_type is None:
-        log.debug('Selecting default token config')
-        token_type = 'default'
-    fmt_parts = token_type.split(':', 1)
+        log.debug("Selecting default token config")
+        token_type = "default"
+    fmt_parts = token_type.split(":", 1)
     fmt = _client_token_formats.get(fmt_parts[0], fmt_parts[0])
     if len(fmt_parts) > 1:
-        if not fmt and fmt_parts[0] != 'none':
-            fmt = 'cseo'
-        elif 'o' not in fmt:
-            fmt += 'o'
-    elif 'o' in fmt:
-        log.warning('Expected an organization string; none provided.')
-        fmt = fmt.replace('o', '')
-    fmt_parts[0] = ''.join(c for c in fmt if c in 'csuhoen')
-    token_type = ':'.join(fmt_parts)
-    log.debug('Final token config: %s', token_type)
+        if not fmt and fmt_parts[0] != "none":
+            fmt = "cseo"
+        elif "o" not in fmt:
+            fmt += "o"
+    elif "o" in fmt:
+        log.warning("Expected an organization string; none provided.")
+        fmt = fmt.replace("o", "")
+    fmt_parts[0] = "".join(c for c in fmt if c in "csuhoen")
+    token_type = ":".join(fmt_parts)
+    log.debug("Final token config: %s", token_type)
     return token_type
 
 
-def _client_token_string(ctx):
+@memoize
+def client_token_string():
+    if not hasattr(Context, "session_token"):
+        initialize_raw_tokens()
     parts = []
-    fmt_parts = ctx.client_token_type.split(':', 1)
+    token_type = client_token_type()
+    fmt_parts = token_type.split(":", 1)
     for code in fmt_parts[0]:
-        if code == 'c':
+        value = None
+        if code == "c":
             value = Context.client_token_raw[:8]
-        elif code == 's':
+        elif code == "s":
             value = Context.session_token
-        elif code == 'u':
+        elif code == "u":
             value = get_username()
-        elif code == 'h':
+        elif code == "h":
             value = get_hostname()
-        elif code == 'o':
+        elif code == "o":
             value = fmt_parts[1]
-        elif code == 'e':
-            value = get_environment_token(ctx)
-        elif code == 'n':
-            value = get_environment_name(ctx)
+        elif code == "e":
+            value = get_environment_token()
+        elif code == "n":
+            value = get_environment_name()
         else:
-            log.warning('Unexpected client token code: %s', code)
+            log.warning("Unexpected client token code: %s", code)
             value = None
         if value:
-            parts.append(code + '/' + value)
-    result = ' '.join(parts)
-    log.debug('Full client token: %s', result)
+            parts.append(code + "/" + value)
+    result = " ".join(parts)
+    log.debug("Full client token: %s", result)
     return result
 
 
-def _user_agent(ctx):
-    token = ctx.client_token_string
+def _new_user_agent(ctx):
+    token = client_token_string()
     result = ctx._old_user_agent
-    return result + ' ' + token if token else result
+    return result + " " + token if token else result
 
 
 def _new_apply_basic_auth(request):
     result = CondaHttpAuth._old_apply_basic_auth(request)
-    token = context.client_token_string
+    token = client_token_string()
     if token:
-        request.headers['X-Conda-Ident'] = token
+        request.headers["X-Conda-Ident"] = token
     return result
 
 
-initialize_raw_tokens()
-if not hasattr(Context, 'client_token'):
-    _param = ParameterLoader(PrimitiveParameter("default"))
-    Context.client_token = _param
-    Context.parameter_names += (_param._set_name("client_token"),)    
-if not hasattr(Context, 'client_token_type'):
-    Context.client_token_type = memoizedproperty(_client_token_type)
-if not hasattr(Context, 'client_token_string'):
-    Context.client_token_string = memoizedproperty(_client_token_string)
-if not hasattr(Context, '_old_user_agent'):
+def _new_check_prefix(prefix, json=False):
+    context.checked_prefix = prefix
+    cli_install._old_check_prefix(prefix, json)
+
+
+# Save the raw token data in Context class attributes
+# to ensure they are passed between subprocesses
+if not hasattr(Context, "client_token_raw"):
+    initialize_raw_tokens()
+
+# conda.base.context.Context.user_agent
+# Adds the ident token to the user agent string
+if not hasattr(Context, "_old_user_agent"):
     Context._old_user_agent = Context.user_agent
-    # The leading underscore ensures that this is stored in
-    # the cache in a different place than the original user agent
-    Context.user_agent = memoizedproperty(_user_agent)
-if not hasattr(CondaHttpAuth, '_old_apply_basic_auth'):
+    # Using a different name ensures that this is stored
+    # in sthe cache in a different place than the original
+    Context.user_agent = memoizedproperty(_new_user_agent)
+
+# conda.gateways.connection.session.CondaHttpAuth
+# Adds the X-Conda-Ident header to all conda requests
+if not hasattr(CondaHttpAuth, "_old_apply_basic_auth"):
     CondaHttpAuth._old_apply_basic_auth = CondaHttpAuth._apply_basic_auth
     CondaHttpAuth._apply_basic_auth = staticmethod(_new_apply_basic_auth)
+
+# conda.cli.install.check_prefix
+# Collects the prefix computed there so that we can properly
+# detect the creation of environments using "conda env create"
+if not hasattr(cli_install, "_old_check_prefix"):
+    cli_install._old_check_prefix = cli_install.check_prefix
+    cli_install.check_prefix = _new_check_prefix
+    context.checked_prefix = None
+
+# conda.base.context.Context
+# Adds client_token as a managed string config parameter
+if not hasattr(Context, "client_token"):
+    _param = ParameterLoader(PrimitiveParameter("default"))
+    Context.client_token = _param
+    Context.parameter_names += (_param._set_name("client_token"),)
