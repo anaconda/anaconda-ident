@@ -4,7 +4,7 @@ import os
 import platform
 import hashlib
 
-from conda.base.context import Context, context, env_name
+from conda.base.context import Context, context, env_name, ParameterLoader, PrimitiveParameter
 from conda.gateways.connection.session import CondaHttpAuth
 from conda.auxlib.decorators import memoize, memoizedproperty
 
@@ -48,7 +48,7 @@ def initialize_raw_tokens():
     if hasattr(Context, 'session_token'):
         return
     Context.session_token = get_random_token(8)
-    Context.raw_client_token = None
+    Context.client_token_raw = None
     cid_file = join(expanduser('~/.conda'), 'client_token')
     client_token = ''
     if os.path.exists(cid_file):
@@ -70,7 +70,7 @@ def initialize_raw_tokens():
         except Exception as exc:
             log.debug('Unexpected error writing client token file: %s', exc)
             client_token = ''
-    Context.raw_client_token = client_token
+    Context.client_token_raw = client_token
 
 
 def get_environment_token(ctx):
@@ -81,12 +81,12 @@ def get_environment_token(ctx):
         return None
     # Do not create an environment token if we don't have
     # enough salt to hash it
-    if len(Context.raw_client_token) < 64:
-        log.debug('raw_client_token not long enough to hash')
+    if len(Context.client_token_raw) < 64:
+        log.debug('client_token_raw not long enough to hash')
         return None
     # Use the client token as salt for the hash function to
     # ensure the receiver cannot decode the environment name
-    hashval = Context.raw_client_token + value
+    hashval = Context.client_token_raw + value
     hash = hashlib.sha1(hashval.encode('utf-8'))
     return get_random_token(8, hash.digest())
 
@@ -120,10 +120,9 @@ def _client_token_type(ctx):
     if token_type:
         log.debug('Hardcoded token config: %s', token_type)
     if token_type is None:
-        for key, value in ctx.raw_data.items():
-            if 'client_token' in value:
-                token_type = value['client_token']._raw_value
-                log.debug('Token config from context: %s', token_type)
+        token_type = ctx.client_token
+        if token_type:
+            log.debug('Token config from context: %s', token_type)
     if token_type is None:
         log.debug('Selecting default token config')
         token_type = 'default'
@@ -143,12 +142,12 @@ def _client_token_type(ctx):
     return token_type
 
 
-def _client_token(ctx):
+def _client_token_string(ctx):
     parts = []
     fmt_parts = ctx.client_token_type.split(':', 1)
     for code in fmt_parts[0]:
         if code == 'c':
-            value = Context.raw_client_token[:8]
+            value = Context.client_token_raw[:8]
         elif code == 's':
             value = Context.session_token
         elif code == 'u':
@@ -172,24 +171,28 @@ def _client_token(ctx):
 
 
 def _user_agent(ctx):
-    token = ctx.client_token
+    token = ctx.client_token_string
     result = ctx._old_user_agent
     return result + ' ' + token if token else result
 
 
 def _new_apply_basic_auth(request):
     result = CondaHttpAuth._old_apply_basic_auth(request)
-    token = context.client_token
+    token = context.client_token_string
     if token:
         request.headers['X-Conda-Ident'] = token
     return result
 
 
 initialize_raw_tokens()
+if not hasattr(Context, 'client_token'):
+    _param = ParameterLoader(PrimitiveParameter("default"))
+    Context.client_token = _param
+    Context.parameter_names += (_param._set_name("client_token"),)    
 if not hasattr(Context, 'client_token_type'):
     Context.client_token_type = memoizedproperty(_client_token_type)
-if not hasattr(Context, 'client_token'):
-    Context.client_token = memoizedproperty(_client_token)
+if not hasattr(Context, 'client_token_string'):
+    Context.client_token_string = memoizedproperty(_client_token_string)
 if not hasattr(Context, '_old_user_agent'):
     Context._old_user_agent = Context.user_agent
     # The leading underscore ensures that this is stored in
