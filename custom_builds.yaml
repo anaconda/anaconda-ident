@@ -6,3 +6,11 @@ custom_build:
 - test_a
 - test_b
 - test_c
+repo_url:
+- https://urla.example.com/
+- https://urlb.example.com/repo
+- https://urlc.example.com/api/repo/
+repo_token:
+- token_a
+- token_b
+- token_c

@@ -223,12 +223,15 @@ def _new_read_binstar_tokens():
 
 # For testing only
 def get_baked_default_channels():
-    fpath = join(os.environ['CONDA_PREFIX'], '.condarc')
+    fpath = join(os.environ["CONDA_PREFIX"], ".condarc")
+    print("CONDARC:", fpath)
     if not exists(fpath):
+        print("DOES NOT EXIST")
         return None
-    with open(fpath, 'r') as fp:
+    with open(fpath, "r") as fp:
         data = fp.read()
-    data = [d for d in data.splitlines() if d.startswith('default_channels:')]
+        print(data)
+    data = [d for d in data.splitlines() if d.startswith("default_channels:")]
     if not data:
         return None
     return data[-1]

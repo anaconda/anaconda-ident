@@ -5,6 +5,8 @@ import sys
 import os
 
 from urllib.parse import quote_plus, unquote_plus
+from os.path import basename, dirname, exists, isdir, join
+
 
 p = argparse.ArgumentParser(description="conda-ident installer")
 p.add_argument("--status", action="store_true", default=None)
@@ -15,6 +17,7 @@ p.add_argument("--default-channel", default=None)
 p.add_argument("--set-condarc", action="store_true", default=None)
 p.add_argument("--repo-token", default=None)
 p.add_argument("--quiet", action="store_true", default=None)
+p.add_argument("--ignore-missing", action="store_true", default=None)
 args = p.parse_args()
 if args.enable and args.disable:
     p.error("Cannot supply both --enable and --disable\n")
@@ -27,6 +30,15 @@ if args.status and args.quiet:
 enable = args.enable or not any(v is not None for v in vars(args).values())
 
 
+local_dir = dirname(__file__)
+pkg_name = basename(local_dir)
+if not args.quiet:
+    msg = pkg_name + " installer"
+    print(msg)
+    msg = "-" * len(msg)
+    print(msg)
+
+
 success = True
 
 
@@ -37,17 +49,11 @@ def error(what, fatal=False):
     traceback.print_exc()
     print("-----")
     if fatal:
-        print("Cannot proceed; exiting.", file=sys.stderr)
+        print("Cannot proceed; exiting.")
+        print(msg)
         sys.exit(-1)
     success = False
 
-
-pfile = os.path.join(sysconfig.get_paths()["purelib"], "conda", "base", "context.py")
-try:
-    with open(pfile, "rb") as fp:
-        text = fp.read()
-except Exception:
-    error("conda_ident installation failed", fatal=True)
 
 pline = """
 try:
@@ -58,8 +64,26 @@ except Exception:
     "ascii"
 )
 
-is_present = b"conda_ident" in text[-len(pline) :]
-need_change = enable and not is_present or args.disable and is_present
+
+sp_dir = sysconfig.get_paths()["purelib"]
+pkg_dir = join(sp_dir, pkg_name)
+if not isdir(pkg_dir):
+    pkg_dir = local_dir
+if not args.quiet:
+    print("Location:", pkg_dir)
+
+
+pfile = join(sp_dir, "conda", "base", "context.py")
+try:
+    with open(pfile, "rb") as fp:
+        text = fp.read()
+    is_present = b"conda_ident" in text[-len(pline) :]
+    need_change = args.enable and not is_present or args.disable and is_present
+except Exception:
+    if not args.ignore_missing:
+        error("conda_ident installation failed", fatal=True)
+    is_present = need_change = False
+
 
 if need_change:
     if not args.quiet:
@@ -79,58 +103,67 @@ if need_change:
             if not is_present:
                 fp.write(pline)
         pfile_orig = pfile + ".orig"
-        if os.path.exists(pfile_orig):
+        if exists(pfile_orig):
             os.unlink(pfile_orig)
         os.rename(pfile, pfile_orig)
         os.rename(pfile + ".new", pfile)
         is_present = not is_present
     except Exception:
-        error("conda_ident activation failed")
+        error("activation failed")
 elif not args.quiet:
-    print("conda_ident:", "ENABLED" if is_present else "DISABLED")
+    print("Status:", "enabled" if is_present else "disabled")
 
-tfile = os.path.join(os.path.dirname(__file__), "client_token")
+
+tfile = join(pkg_dir, "client_token")
 tvalue = None
 if args.client_token:
     try:
-        tfile = os.path.join(os.path.dirname(__file__), "client_token")
         with open(tfile, "w") as fp:
             fp.write(args.client_token)
         tvalue = args.client_token
     except Exception:
         error("client_token setting failed")
-elif os.path.exists(tfile):
+elif exists(tfile):
     try:
         with open(tfile, "r") as fp:
             tvalue = fp.read().strip()
     except Exception:
         error("client_token reading failed")
-if tvalue and not args.quiet:
-    print("client_token configuration:", tvalue)
+if not args.quiet:
+    print("Client token:", tvalue or "<none>")
 
-if args.set_condarc and args.default_channel:
+defchan = (args.default_channel or "").rstrip("/")
+if args.set_condarc and defchan:
     try:
-        tfile = os.path.join(os.environ["CONDA_PREFIX"], ".condarc")
-        with open(tfile, "w+") as fp:
-            fp.write('default_channels: ["%s"]\n' % args.default_channel)
+        tfile = join(sys.prefix, ".condarc")
+        print("Creating:", tfile)
+        with open(tfile, "w") as fp:
+            fp.write('default_channels: ["%s"]\n' % defchan)
         if not args.quiet:
-            print("default_channels set:", args.default_channel)
+            print("default_channels set:", defchan)
     except Exception:
         error("condarc setting failed")
 
-dname = os.path.join(os.path.dirname(__file__), "tokens")
-if args.repo_token and args.default_channel:
-    fname = quote_plus(args.default_channel.rstrip("/") + "/") + ".token"
-    fpath = os.path.join(dname, fname)
+dname = join(pkg_dir, "tokens")
+if args.repo_token and defchan:
+    fname = quote_plus(defchan + "/") + ".token"
+    fpath = join(dname, fname)
     try:
         os.makedirs(dname, exist_ok=True)
         with open(fpath, "w") as fp:
             fp.write(args.repo_token)
         if not args.quiet:
-            print("repo_token set for:", args.default_channel)
+            print("repo_token set for:", defchan)
     except Exception:
         error("repo_token setting failed")
-elif os.path.exists(dname) and not args.quiet:
-    for entry in os.scandir(dname):
-        if entry.name.endswith(".token"):
-            print("repo_token found for:", unquote_plus(entry.name[:-6]))
+elif isdir(dname):
+    if not args.quiet:
+        print("Repo token directory: found")
+        for entry in os.scandir(dname):
+            if entry.name.endswith(".token"):
+                print(" -", unquote_plus(entry.name[:-6]))
+elif not args.quiet:
+    print("Repo token directory: NOT found")
+
+if not args.quiet:
+    print(msg)

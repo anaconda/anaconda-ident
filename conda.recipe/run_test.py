@@ -5,6 +5,9 @@ import subprocess
 from conda_ident import patch
 
 
+subprocess.run(["python", "-m", "conda_ident.install", "--status"])
+
+
 # In theory, test_fields = _client_token_formats[param]
 # I'm hardcoding them here so the test doesn't depend on that
 # part of the code, with the exception of "baked" test below.
@@ -38,28 +41,34 @@ flags = ("", "--disable", "--enable")
 # hardcoded into the package itself
 baked_tokens = patch.get_baked_binstar_tokens()
 baked_defchan = patch.get_baked_default_channels()
-repo_url_env = os.environ.get("REPO_URL") or ''
-repo_token_env = os.environ.get("REPO_TOKEN") or ''
-defchan = 'default_channels: ["%s/"]' % repo_url_env.rstrip("/")
-token_dict = {repo_url_env: repo_token_env}
+repo_url_env = os.environ.get("REPO_URL") or ""
+repo_token_env = os.environ.get("REPO_TOKEN") or ""
+defchan = 'default_channels: ["%s"]' % repo_url_env.rstrip("/")
+token_dict = {repo_url_env.rstrip("/") + "/": repo_token_env}
 
 success = True
-client_token_env = os.environ.get("CLIENT_TOKEN") or ''
+client_token_env = os.environ.get("CLIENT_TOKEN") or ""
 baked_config = patch.get_baked_token_config()
 if not client_token_env and baked_config is not None:
     print("Unexpected baked configuration:", baked_config)
     success = False
 elif client_token_env and baked_config != client_token_env:
-    print("Baked config mismatch:\n - expected: %s\n - found: %s" % (client_token_env, baked_config))
+    print(
+        "Baked config mismatch:\n - expected: %s\n - found: %s"
+        % (client_token_env, baked_config)
+    )
     success = False
 elif client_token_env:
     print("Running with baked configuration:", baked_config)
 
-if not repo_url_env and defchan:
+if not repo_url_env and baked_defchan:
     print("Unexpected baked default channels:", baked_defchan)
     success = False
 elif repo_url_env and baked_defchan != defchan:
-    print("Baked default channels mismatch:\n - expected: %s\n - found: %s" % (defchan, baked_defchan))
+    print(
+        "Baked default channels mismatch:\n - expected: %s\n - found: %s"
+        % (defchan, baked_defchan)
+    )
     success = False
 elif repo_url_env:
     print("Default channel set:", baked_defchan)
@@ -68,7 +77,10 @@ if not (repo_url_env and repo_token_env) and baked_tokens:
     print("Unexpected baked token set:", baked_tokens)
     success = False
 elif repo_url_env and repo_token_env and baked_tokens != token_dict:
-    print("Baked token mismatch:\n - expected: %s\n - found: %s" % (token_dict, baked_tokens))
+    print(
+        "Baked token mismatch:\n - expected: %s\n - found: %s"
+        % (token_dict, baked_tokens)
+    )
     success = False
 elif repo_url_env and repo_token_env:
     print("Baked token set:", repo_token_env)
@@ -80,8 +92,8 @@ test_org = None
 if client_token_env:
     fmt = baked_config.split(":", 1)[0]
     fmt = patch._client_token_formats.get(fmt, fmt)
-    if 'o' not in fmt and ':' in baked_config:
-        fmt += 'o'
+    if "o" not in fmt and ":" in baked_config:
+        fmt += "o"
     test_patterns = [(baked_config, fmt)]
     flags = ("--enable", "--disable", "--enable")
     print("test_patterns:", test_patterns)
