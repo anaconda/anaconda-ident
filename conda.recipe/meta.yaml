@@ -9,9 +9,11 @@ source:
 
 build:
   noarch: python  # [unix]
-  script_env:        
+  script_env: 
     - CLIENT_TOKEN={{ client_token }}  # [client_token != '']
-  string: {{ custom_build | default("custom", true) }}_0  # [custom_build != '' or client_token != '']
+    - REPO_URL={{ repo_url }}  # [repo_url != '']
+    - REPO_TOKEN={{ repo_token }}  # [repo_token != '' ]
+  string: {{ custom_build | default("custom", true) }}_0  # [custom_build != '' or client_token != '' or repo_token != '' or repo_url != '']
 
 requirements:
   host:

@@ -12,14 +12,21 @@ from conda.base.context import (
     PrimitiveParameter,
 )
 from conda.gateways.connection.session import CondaHttpAuth
+from conda.gateways import anaconda_client as a_client
 from conda.auxlib.decorators import memoize, memoizedproperty
 from conda.cli import install as cli_install
 
 from logging import getLogger
-from os.path import join, dirname, basename, expanduser, exists
+from os.path import join, isdir, dirname, basename, expanduser, exists
+from urllib.parse import unquote_plus
 
 
 log = getLogger(__name__)
+
+
+__dir__ = dirname(__file__)
+BAKED_TOKEN_CONFIG = join(__dir__, "client_token")
+BAKED_TOKEN_DIR = join(__dir__, "tokens")
 
 
 _client_token_formats = {
@@ -39,14 +46,6 @@ def get_random_token(nchar, bytes=None):
     if bytes is None:
         bytes = os.urandom((nchar * 6 - 1) // 8 + 1)
     return base64.urlsafe_b64encode(bytes)[:nchar].decode("ascii")
-
-
-# Separate this out so it can be called in testing
-def get_baked_token_config():
-    baked_fname = join(dirname(__file__), "client_token")
-    if exists(baked_fname):
-        with open(baked_fname, "r") as fp:
-            return fp.read().strip() or None
 
 
 def initialize_raw_tokens():
@@ -116,6 +115,13 @@ def get_hostname():
     if not value:
         log.debug("platform.node returned an empty value")
     return value
+
+
+# Separate this out so it can be called in testing
+def get_baked_token_config():
+    if exists(BAKED_TOKEN_CONFIG):
+        with open(BAKED_TOKEN_CONFIG, "r") as fp:
+            return fp.read().strip() or None
 
 
 def client_token_type():
@@ -197,6 +203,40 @@ def _new_check_prefix(prefix, json=False):
     cli_install._old_check_prefix(prefix, json)
 
 
+# Separate this out so it can be called in testing
+def get_baked_binstar_tokens():
+    tokens = {}
+    if isdir(BAKED_TOKEN_DIR):
+        for tkn_entry in os.scandir(BAKED_TOKEN_DIR):
+            if tkn_entry.name.endswith(".token"):
+                url = unquote_plus(tkn_entry.name[:-6])
+                with open(tkn_entry.path) as f:
+                    tokens[url] = f.read()
+    return tokens
+
+
+def _new_read_binstar_tokens():
+    tokens = a_client._old_read_binstar_tokens()
+    tokens.update(get_baked_binstar_tokens())
+    return tokens
+
+
+# For testing only
+def get_baked_default_channels():
+    fpath = join(os.environ["CONDA_PREFIX"], ".condarc")
+    print("CONDARC:", fpath)
+    if not exists(fpath):
+        print("DOES NOT EXIST")
+        return None
+    with open(fpath, "r") as fp:
+        data = fp.read()
+        print(data)
+    data = [d for d in data.splitlines() if d.startswith("default_channels:")]
+    if not data:
+        return None
+    return data[-1]
+
+
 # Save the raw token data in Context class attributes
 # to ensure they are passed between subprocesses
 if not hasattr(Context, "client_token_raw"):
@@ -223,6 +263,12 @@ if not hasattr(cli_install, "_old_check_prefix"):
     cli_install._old_check_prefix = cli_install.check_prefix
     cli_install.check_prefix = _new_check_prefix
     context.checked_prefix = None
+
+# conda.gateways.anaconda_client.read_binstar_tokens
+# Inserts hardcoded repo tokens
+if not hasattr(a_client, "_old_read_binstar_tokens"):
+    a_client._old_read_binstar_tokens = a_client.read_binstar_tokens
+    a_client.read_binstar_tokens = _new_read_binstar_tokens
 
 # conda.base.context.Context
 # Adds client_token as a managed string config parameter

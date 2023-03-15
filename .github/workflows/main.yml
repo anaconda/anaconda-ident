@@ -12,12 +12,20 @@ on:
     inputs:
       token_config:
         description: 'Client token configuration string'
-        default: 'random'
+        default: 'default'
         required: true
       build_string:
         description: 'Build string'
         default: 'custom'
         required: true
+      repo_url:
+        description: 'Custom default_channels URL'
+        default: ''
+        required: false
+      repo_token:
+        description: 'Custom repo token'
+        default: ''
+        required: false
 jobs:
   package:
     defaults:
@@ -47,7 +55,9 @@ jobs:
         source $CONDA/etc/profile.d/conda.sh
         cfg=${{ github.event.inputs.token_config }}
         str=${{ github.event.inputs.build_string }}
-        variant='{"client_token":"'$cfg'","custom_build":"'$str'"}'
+        url=${{ github.event.inputs.repo_url }}
+        tok=${{ github.event.inputs.repo_token }}
+        variant='{"client_token":"'$cfg'","custom_build":"'$str'","repo_url":"'$url'","repo_token":'$tok'"}'
         conda build conda.recipe --variants "$variant"
     - name: Smoke test the baked build
       if: github.event_name != 'workflow_dispatch'

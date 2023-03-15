@@ -1,7 +1,13 @@
 client_token:
 - ""
+repo_url:
+- ""
+repo_token:
+- ""
 custom_build:
 - ""
 zip_keys:
 - client_token
 - custom_build
+- repo_url
+- repo_token
