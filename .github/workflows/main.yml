@@ -12,7 +12,7 @@ on:
     inputs:
       token_config:
         description: 'Client token configuration string'
-        default: 'random'
+        default: 'default'
         required: true
       build_string:
         description: 'Build string'

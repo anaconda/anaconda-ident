@@ -190,7 +190,7 @@ Here is an example set of tokens for the configuration `full:myorg`:
 c/NIedulQP s/SsYPna-z e/Tfgp_cYz u/mgrant h/m1mbp.local n/base o/myorg
 ```
 
-### Setting the configuration
+### Local configuration
 
 There are two approaches to setting the configuration for
 `conda-ident`. The first is to set the `client_token` parameter
@@ -207,13 +207,32 @@ insert a line; e.g.
 client_token: userhost:my_org.
 ```
 
-Alternatively, you can save your preferred configuration in
-a *file* named `client_token` placed in the installed
-`conda_ident` package directory itself. When this file is
-present, it *overrides* any setting found in your conda
-configuration. This approach allows configuration data
-to be included within the conda package itself, simplifying
-distribution; more on this below.
+### Advanced: embedded configuration
+
+A key feature of the `conda_ident` package is the ability
+to embed key configuration information _within the package itself_,
+including any combination of the following:
+
+- The `client_token` configuration value
+- A custom `default_channels` value to point conda's `defaults`
+  metachannel to an alternative repository
+- A standard Conda authentication token for a repository
+
+The typical use case for this is to build a custom version of
+the conda package that can be readily distributed within an
+organization. This enables a user to be fully configured to
+provide telemetry and access an authenticated repository with
+a single package installation. This package can be built
+into custom installers as well.
+
+The full command utilizes the `install` submodule of the
+`conda_ident` package. A typical command looks like
+
+```
+python -m conda_ident.install --enable \
+   --client-token <CLIENT_TOKEN> --default-channel <REPO_URL> \
+   --set-condarc --repo-token <REPO_TOKEN> \
+```
 
 ## Distributing `conda-ident`
 
