@@ -9,11 +9,16 @@ source:
 
 build:
   noarch: python  # [unix]
-  script_env: 
-    - CLIENT_TOKEN={{ client_token }}  # [client_token != '']
-    - REPO_URL={{ repo_url }}  # [repo_url != '']
-    - REPO_TOKEN={{ repo_token }}  # [repo_token != '' ]
-  string: {{ custom_build | default("custom", true) }}_0  # [custom_build != '' or client_token != '' or repo_token != '' or repo_url != '']
+  script_env:
+    - CONFIG_STRING={{ config_string }}  # [config_string != "blank"]
+    - CONFIG_STRING=  # [config_string == "blank"]
+    - DEFAULT_CHANNELS={{ default_channels }}  # [default_channels != "blank"]
+    - DEFAULT_CHANNELS=  # [default_channels == "blank"]
+    - CHANNEL_ALIAS={{ channel_alias }}  # [channel_alias != "blank"]
+    - CHANNEL_ALIAS=  # [channel_alias == "blank"]
+    - REPO_TOKEN={{ repo_token }}  # [repo_token != "blank"]
+    - REPO_TOKEN=  # [repo_token == "blank"]
+  string: {{ custom_build | default("custom", true) }}_0  # [custom_build or config_string]
 
 requirements:
   host:

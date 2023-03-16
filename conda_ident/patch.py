@@ -2,6 +2,7 @@ import base64
 import getpass
 import os
 import platform
+import sys
 import hashlib
 
 from conda.base.context import (
@@ -11,22 +12,23 @@ from conda.base.context import (
     ParameterLoader,
     PrimitiveParameter,
 )
+from conda.gateways.connection import session as c_session
 from conda.gateways.connection.session import CondaHttpAuth
 from conda.gateways import anaconda_client as a_client
 from conda.auxlib.decorators import memoize, memoizedproperty
 from conda.cli import install as cli_install
 
 from logging import getLogger
-from os.path import join, isdir, dirname, basename, expanduser, exists
+from os.path import join, isdir, basename, expanduser, exists
 from urllib.parse import unquote_plus
 
 
 log = getLogger(__name__)
 
 
-__dir__ = dirname(__file__)
-BAKED_TOKEN_CONFIG = join(__dir__, "client_token")
-BAKED_TOKEN_DIR = join(__dir__, "tokens")
+BAKED_TOKEN_DIR = join(sys.prefix, "etc", "conda_ident")
+BAKED_TOKEN_CONFIG = join(BAKED_TOKEN_DIR, "config")
+DEBUG = bool(os.environ.get('CONDA_IDENT_DEBUG'))
 
 
 _client_token_formats = {
@@ -221,26 +223,16 @@ def _new_read_binstar_tokens():
     return tokens
 
 
-# For testing only
-def get_baked_default_channels():
-    fpath = join(os.environ["CONDA_PREFIX"], ".condarc")
-    print("CONDARC:", fpath)
-    if not exists(fpath):
-        print("DOES NOT EXIST")
-        return None
-    with open(fpath, "r") as fp:
-        data = fp.read()
-        print(data)
-    data = [d for d in data.splitlines() if d.startswith("default_channels:")]
-    if not data:
-        return None
-    return data[-1]
+if DEBUG:
+    print("CONDA_IDENT DEBUGGING ENABLED")
 
 
 # Save the raw token data in Context class attributes
 # to ensure they are passed between subprocesses
 if not hasattr(Context, "client_token_raw"):
     initialize_raw_tokens()
+    if DEBUG:
+        print("| RAW TOKEN:", "set" if getattr(context, 'client_token_raw', None) else "MISSING")
 
 # conda.base.context.Context.user_agent
 # Adds the ident token to the user agent string
@@ -249,12 +241,16 @@ if not hasattr(Context, "_old_user_agent"):
     # Using a different name ensures that this is stored
     # in sthe cache in a different place than the original
     Context.user_agent = memoizedproperty(_new_user_agent)
+    if DEBUG:
+        print("| USER_AGENT:", "patched" if getattr(Context, '_old_user_agent', None) else "UNPATCHED")
 
 # conda.gateways.connection.session.CondaHttpAuth
 # Adds the X-Conda-Ident header to all conda requests
 if not hasattr(CondaHttpAuth, "_old_apply_basic_auth"):
     CondaHttpAuth._old_apply_basic_auth = CondaHttpAuth._apply_basic_auth
     CondaHttpAuth._apply_basic_auth = staticmethod(_new_apply_basic_auth)
+    if DEBUG:
+        print("| CONDA_AUTH:", "patched" if getattr(CondaHttpAuth, '_old_apply_basic_auth', None) else "UNPATCHED")
 
 # conda.cli.install.check_prefix
 # Collects the prefix computed there so that we can properly
@@ -263,12 +259,18 @@ if not hasattr(cli_install, "_old_check_prefix"):
     cli_install._old_check_prefix = cli_install.check_prefix
     cli_install.check_prefix = _new_check_prefix
     context.checked_prefix = None
+    if DEBUG:
+        print("| CHECK_PREFIX:", "patched" if getattr(cli_install, '_old_check_prefix', None) else "UNPATCHED")
 
 # conda.gateways.anaconda_client.read_binstar_tokens
+# conda.gateways.connection.session.read_binstar_tokens
 # Inserts hardcoded repo tokens
 if not hasattr(a_client, "_old_read_binstar_tokens"):
     a_client._old_read_binstar_tokens = a_client.read_binstar_tokens
     a_client.read_binstar_tokens = _new_read_binstar_tokens
+    c_session.read_binstar_tokens = _new_read_binstar_tokens
+    if DEBUG:
+        print("| READ_BINSTAR_TOKENS:", "patched" if getattr(a_client, '_old_read_binstar_tokens', None) else "UNPATCHED")
 
 # conda.base.context.Context
 # Adds client_token as a managed string config parameter
@@ -276,3 +278,8 @@ if not hasattr(Context, "client_token"):
     _param = ParameterLoader(PrimitiveParameter("default"))
     Context.client_token = _param
     Context.parameter_names += (_param._set_name("client_token"),)
+    if DEBUG:
+        print("| CLIENT_TOKEN_CONFIG:", "patched" if getattr(context, 'client_token', None) else "UNPATCHED")
+
+if DEBUG:
+    print("CONDA_IDENT patching completed")

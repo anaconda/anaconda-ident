@@ -1,6 +1,7 @@
 import sysconfig
 import traceback
 import argparse
+import shutil
 import sys
 import os
 
@@ -8,35 +9,74 @@ from urllib.parse import quote_plus, unquote_plus
 from os.path import basename, dirname, exists, isdir, join
 
 
-p = argparse.ArgumentParser(description="conda-ident installer")
-p.add_argument("--status", action="store_true", default=None)
-p.add_argument("--enable", action="store_true", default=None)
-p.add_argument("--disable", action="store_true", default=None)
-p.add_argument("--client-token", default=None)
-p.add_argument("--default-channel", default=None)
-p.add_argument("--set-condarc", action="store_true", default=None)
-p.add_argument("--repo-token", default=None)
-p.add_argument("--quiet", action="store_true", default=None)
-p.add_argument("--ignore-missing", action="store_true", default=None)
-args = p.parse_args()
-if args.enable and args.disable:
-    p.error("Cannot supply both --enable and --disable\n")
-if args.set_condarc and args.default_channel is None:
-    p.error("--set-condarc cannot be used without --default-channel\n")
-if args.repo_token and args.default_channel is None:
-    p.error("--repo-token cannot be used without --default-channel\n")
-if args.status and args.quiet:
-    p.error("Cannot supply both --status and --quiet\n")
-enable = args.enable or not any(v is not None for v in vars(args).values())
-
-
-local_dir = dirname(__file__)
-pkg_name = basename(local_dir)
-if not args.quiet:
-    msg = pkg_name + " installer"
-    print(msg)
-    msg = "-" * len(msg)
-    print(msg)
+def parse_argv():
+    p = argparse.ArgumentParser(description="conda-ident installer")
+    g = p.add_mutually_exclusive_group()
+    g.add_argument("--enable", action="store_true", help="Enable conda_ident operation")
+    g.add_argument(
+        "--disable", action="store_true", help="Disable conda_ident operation"
+    )
+    g.add_argument(
+        "--clean",
+        action="store_true",
+        help="Disable conda_ident operation and remove configuration data.",
+    )
+    p.add_argument(
+        "--quiet",
+        dest="verbose",
+        action="store_false",
+        default=True,
+        help="Silent mode.",
+    )
+    p.add_argument(
+        "--config", default=None, help="Install a hardcoded configuration value."
+    )
+    p.add_argument(
+        "--channel-alias",
+        default=None,
+        help="Specify a channel_alias to use for --set-condarc and/or --token.",
+    )
+    p.add_argument(
+        "--default-channel",
+        action="append",
+        help="Specify a default_channel to use for --set-condarc and/or --token. "
+        "Multiple channels may be supplied as a comma-separated list or by supplying "
+        "multiple --default-channel options.",
+    )
+    p.add_argument(
+        "--set-condarc",
+        action="store_true",
+        default=None,
+        help="Append a default_channels configuration to $CONDA_PREFIX/.condarc. "
+        "To use this, at least one --default-channel must be supplied.",
+    )
+    p.add_argument(
+        "--token",
+        default=None,
+        help="Store a token for conda authentication. To use this, either "
+        "--channel-alias or a full URL in --default-channel must be supplied.",
+    )
+    g.add_argument("--verify", action="store_true", help=argparse.SUPPRESS)
+    p.add_argument(
+        "--ignore-missing", action="store_true", default=None, help=argparse.SUPPRESS
+    )
+    args = p.parse_args()
+    if (args.clean or args.verify) and sum(
+        v is not None for v in vars(args).values()
+    ) != 5:
+        what = "clean" if args.clean else "verify"
+        print("WARNING: --%s overrides other operations" % what)
+    if args.set_condarc and not args.default_channel:
+        print("WARNING: --set-condarc is inoperative without --default-channel\n")
+    if args.token and not args.default_channel:
+        print("WARNING: --token is inoperative used without --default-channel\n")
+    if (args.default_channel or args.channel_alias) and not (
+        args.token or args.set_condarc
+    ):
+        print(
+            "WARNING: ---default-channel/--channel-alias should be used with --set-condarc/--token"
+        )
+    return args
 
 
 success = True
@@ -49,45 +89,57 @@ def error(what, fatal=False):
     traceback.print_exc()
     print("-----")
     if fatal:
-        print("Cannot proceed; exiting.")
-        print(msg)
+        print("cannot proceed; exiting.")
         sys.exit(-1)
     success = False
 
 
-pline = """
+PATCH_TEXT = """
 try:
     import conda_ident.patch
-except Exception:
+except Exception as exc:
     pass
-""".encode(
-    "ascii"
-)
+"""
 
 
-sp_dir = sysconfig.get_paths()["purelib"]
-pkg_dir = join(sp_dir, pkg_name)
-if not isdir(pkg_dir):
-    pkg_dir = local_dir
-if not args.quiet:
-    print("Location:", pkg_dir)
+def manage_patch(args):
+    global PATCH_TEXT
 
+    sp_dir = sysconfig.get_paths()["purelib"]
+    pfile = join(sp_dir, "conda", "base", "context.py")
+    pline = PATCH_TEXT.encode("ascii")
+    nline = len(pline)
 
-pfile = join(sp_dir, "conda", "base", "context.py")
-try:
-    with open(pfile, "rb") as fp:
-        text = fp.read()
-    is_present = b"conda_ident" in text[-len(pline) :]
-    need_change = args.enable and not is_present or args.disable and is_present
-except Exception:
-    if not args.ignore_missing:
-        error("conda_ident installation failed", fatal=True)
-    is_present = need_change = False
+    def _read(pfile):
+        try:
+            with open(pfile, "rb") as fp:
+                text = fp.read()
+        except Exception:
+            if args and not args.ignore_missing:
+                error("conda_ident installation failed", fatal=True)
+            text = b""
+        return text, b"conda_ident" in text[-nline:]
 
+    text, is_present = _read(pfile)
+    if args.verbose:
+        print("patch target:", pfile)
+        print("current status:", "ENABLED" if is_present else "DISABLED")
 
-if need_change:
-    if not args.quiet:
-        print(("Disabling" if is_present else "Enabling"), "conda_ident...")
+    enable = args.enable or args.verify
+    disable = args.disable or args.clean
+
+    need_change = enable and not is_present or disable and is_present
+    if not need_change:
+        if args.verbose and (enable or disable):
+            print("no patchwork needed")
+        return
+    elif text is None:
+        if args.verbose:
+            print("nothing to patch")
+        return
+
+    if args.verbose:
+        print(("reverting" if is_present else "applying"), "patch...")
     try:
         wineol = b"\r\n" in text
         if wineol != (b"\r\n" in pline):
@@ -109,61 +161,211 @@ if need_change:
         os.rename(pfile + ".new", pfile)
         is_present = not is_present
     except Exception:
-        error("activation failed")
-elif not args.quiet:
-    print("Status:", "enabled" if is_present else "disabled")
+        error("%s failed" % ("deactivation" if is_present else "activation"))
+
+    text, is_present = _read(pfile)
+    if args.verbose:
+        print("new status:", "ENABLED" if is_present else "DISABLED")
 
 
-tfile = join(pkg_dir, "client_token")
-tvalue = None
-if args.client_token:
+def manage_data_dir(args, dname):
+    if bool(args.clean) == isdir(dname) and (args.clean or args.config or args.token):
+        if args.verbose:
+            print(("removing" if args.clean else "creating"), "directory...")
+        try:
+            if args.clean:
+                shutil.rmtree(dname)
+            else:
+                os.makedirs(dname, exist_ok=True)
+        except Exception:
+            error("directory operation failed")
+    return dname if isdir(dname) else None
+
+
+def manage_config(args, dname):
+    if not (args.config or args.verbose):
+        return
+    tfile = join(dname, "config")
+    value = None
+    if exists(tfile):
+        try:
+            with open(tfile, "r") as fp:
+                value = fp.read().strip()
+        except Exception:
+            error("config read failed")
+    if args.verbose:
+        print("current config:", value if value else "<none>")
+    if args.clean or not args.config:
+        return
+    if args.config == value:
+        if args.verbose:
+            print("no config change required")
+        return
+    if args.verbose:
+        print("new config:", args.config)
     try:
         with open(tfile, "w") as fp:
-            fp.write(args.client_token)
-        tvalue = args.client_token
+            fp.write(args.config)
     except Exception:
-        error("client_token setting failed")
-elif exists(tfile):
-    try:
-        with open(tfile, "r") as fp:
-            tvalue = fp.read().strip()
-    except Exception:
-        error("client_token reading failed")
-if not args.quiet:
-    print("Client token:", tvalue or "<none>")
+        error("config writing failed")
 
-defchan = (args.default_channel or "").rstrip("/")
-if args.set_condarc and defchan:
-    try:
-        tfile = join(sys.prefix, ".condarc")
-        print("Creating:", tfile)
-        with open(tfile, "w") as fp:
-            fp.write('default_channels: ["%s"]\n' % defchan)
-        if not args.quiet:
-            print("default_channels set:", defchan)
-    except Exception:
-        error("condarc setting failed")
 
-dname = join(pkg_dir, "tokens")
-if args.repo_token and defchan:
-    fname = quote_plus(defchan + "/") + ".token"
-    fpath = join(dname, fname)
-    try:
-        os.makedirs(dname, exist_ok=True)
-        with open(fpath, "w") as fp:
-            fp.write(args.repo_token)
-        if not args.quiet:
-            print("repo_token set for:", defchan)
-    except Exception:
-        error("repo_token setting failed")
-elif isdir(dname):
-    if not args.quiet:
-        print("Repo token directory: found")
-        for entry in os.scandir(dname):
-            if entry.name.endswith(".token"):
-                print(" -", unquote_plus(entry.name[:-6]))
-elif not args.quiet:
-    print("Repo token directory: NOT found")
+def manage_condarc(args):
+    if not (
+        args.clean
+        or args.set_condarc
+        and (any(args.default_channel) or args.channel_alias)
+        or args.verbose
+    ):
+        return
 
-if not args.quiet:
-    print(msg)
+    tfile = join(sys.prefix, ".condarc")
+    lstart = "# <<< conda_ident <<<"
+    lfinish = "# >>> conda_ident >>>"
+
+    result = extra = []
+    if exists(tfile):
+        try:
+            with open(tfile, "r") as fp:
+                result = fp.read().splitlines()
+            if lstart in result and lfinish in result:
+                n1 = result.index(lstart)
+                n2 = result.index(lfinish)
+                extra = result[n1 + 1 : n2]
+                del result[n1 : n2 + 1]
+        except Exception:
+            error("reading condarc failed")
+            return
+
+    if args.verbose:
+        if extra:
+            print("current condarc content:")
+            print("\n".join("| " + c for c in extra))
+        else:
+            print("current condarc content: <none>")
+
+    if args.clean:
+        newextra = []
+    elif args.set_condarc and (any(args.default_channel) or args.channel_alias):
+        newextra = ["add_anaconda_token: true"]
+        if args.channel_alias:
+            newextra.append("channel_alias: " + args.channel_alias)
+        newextra.append("default_channels:")
+        for c1 in args.default_channel:
+            for c2 in c1.split(","):
+                newextra.append("  - " + c2.strip().rstrip("/"))
+    else:
+        return
+
+    if newextra == extra:
+        if args.verbose:
+            print("no condarc changes required")
+        return
+    elif args.verbose and newextra:
+        print("new condarc content:")
+        print("\n".join("| " + c for c in newextra))
+
+    if newextra:
+        result.append(lstart)
+        result.extend(newextra)
+        result.append(lfinish)
+    if result:
+        if args.verbose:
+            what = "modified" if newextra else "cleaned"
+            print("writing %s condarc..." % what)
+        try:
+            with open(tfile, "w") as fp:
+                fp.write("\n".join(result) + "\n")
+        except Exception:
+            error("condarc writing failed")
+    elif exists(tfile):
+        if args.verbose:
+            print("removing condarc...")
+        try:
+            os.unlink(tfile)
+        except Exception:
+            error("condarc removal failed")
+
+
+def manage_token(args, dname):
+    do_update = (
+        bool(args.default_channel or args.channel_alias and args.token)
+        and not args.clean
+    )
+    if not (do_update or args.verbose):
+        return
+
+    tokens = {}
+    try:
+        if isdir(dname):
+            for entry in os.scandir(dname):
+                if entry.name.endswith(".token"):
+                    url = unquote_plus(entry.name[:-6])
+                    with open(entry.path) as f:
+                        tokens[url] = f.read().strip()
+    except Exception:
+        error("token directory read failure")
+
+    if args.verbose:
+        if tokens:
+            print("current repo tokens:")
+            for k, v in tokens.items():
+                print(" - %s: %s..." % (k, v[:6]))
+        else:
+            print("current repo tokens: <none>")
+
+    newtokens = {}
+    if args.token and (args.channel_alias or args.default_channel):
+        defchan = args.channel_alias or args.default_channel[0].split(",", 1)[0]
+        defchan = "/".join(defchan.strip().split("/", 3)[:3]) + "/"
+        newtokens[defchan] = args.token.strip()
+    else:
+        newtokens = tokens
+
+    if newtokens == tokens:
+        if do_update and args.verbose:
+            print("no repo token changes required")
+        return
+    elif args.verbose and newtokens:
+        print("new repo tokens:")
+        for k, v in newtokens.items():
+            print(" - %s: %s..." % (k, v[:6]))
+
+    if args.verbose:
+        try:
+            print(("updating" if tokens else "creating"), "repo token...")
+            for key in set(tokens) | set(newtokens):
+                fpath = join(dname, quote_plus(key) + ".token")
+                if key in newtokens:
+                    with open(fpath, "w") as fp:
+                        fp.write(newtokens[key])
+                else:
+                    os.unlink(fpath)
+        except Exception:
+            error("repo token writing failed")
+
+
+def main():
+    global success
+    args = parse_argv()
+    if args.verbose:
+        pkg_name = basename(dirname(__file__))
+        msg = pkg_name + " installer"
+        print(msg)
+        msg = "-" * len(msg)
+        print(msg)
+    manage_patch(args)
+    if not args.verify:
+        dname = join(sys.prefix, "etc", "conda_ident")
+        print("config directory:", dname)
+        manage_data_dir(args, dname)
+        manage_config(args, dname)
+        manage_condarc(args)
+        manage_token(args, dname)
+    if args.verbose:
+        print(msg)
+    return 0 if success else -1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

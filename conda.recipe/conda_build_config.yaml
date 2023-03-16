@@ -1,13 +1,16 @@
-client_token:
+config_string:
 - ""
-repo_url:
+default_channels:
+- ""
+channel_alias:
 - ""
 repo_token:
 - ""
 custom_build:
 - ""
 zip_keys:
-- client_token
-- custom_build
-- repo_url
+- config_string
+- default_channels
+- channel_alias
 - repo_token
+- custom_build
