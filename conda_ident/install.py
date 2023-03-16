@@ -32,16 +32,18 @@ def parse_argv():
         "--config", default=None, help="Install a hardcoded configuration value."
     )
     p.add_argument(
-        "--channel-alias",
-        default=None,
-        help="Specify a channel_alias to use for --set-condarc and/or --token.",
-    )
-    p.add_argument(
         "--default-channel",
         action="append",
-        help="Specify a default_channel to use for --set-condarc and/or --token. "
+        help="Specify a default channel for use with --set-condarc and/or --token. "
         "Multiple channels may be supplied as a comma-separated list or by supplying "
         "multiple --default-channel options.",
+    )
+    p.add_argument(
+        "--channel-alias",
+        default=None,
+        help="Specify a channel_alias to use with --set-condarc and/or --token. "
+        "This is recomended only if all channels are sourced from the same repository; "
+        "e.g., an instance of Anaconda Server.",
     )
     p.add_argument(
         "--set-condarc",
@@ -53,8 +55,9 @@ def parse_argv():
     p.add_argument(
         "--token",
         default=None,
-        help="Store a token for conda authentication. To use this, either "
-        "--channel-alias or a full URL in --default-channel must be supplied.",
+        help="Store a token for conda authentication. To use this, a full channel "
+        "URL is required. This will either be determined from the first full URL "
+        "in the default_channels list; or if not present there, from channel_alias.",
     )
     g.add_argument("--verify", action="store_true", help=argparse.SUPPRESS)
     p.add_argument(
@@ -316,7 +319,13 @@ def manage_token(args, dname):
 
     newtokens = {}
     if args.token and (args.channel_alias or args.default_channel):
-        defchan = args.channel_alias or args.default_channel[0].split(",", 1)[0]
+        # Prefer full URLs in default_channel over channel_alias
+        defchan = []
+        for c1 in args.default_channel:
+            for c2 in c1.split(","):
+                if "/" in c2:
+                    defchan.append(c2)
+        defchan = defchan[0] if defchan else args.channel_alias
         defchan = "/".join(defchan.strip().split("/", 3)[:3]) + "/"
         newtokens[defchan] = args.token.strip()
     else:
