@@ -102,9 +102,10 @@ except Exception as exc:
 """
 
 
-def manage_patch(args, sp_dir):
+def manage_patch(args):
     global PATCH_TEXT
 
+    sp_dir = sysconfig.get_paths()["purelib"]
     pfile = join(sp_dir, "conda", "base", "context.py")
     pline = PATCH_TEXT.encode("ascii")
     nline = len(pline)
@@ -122,7 +123,7 @@ def manage_patch(args, sp_dir):
     text, is_present = _read(pfile)
     if args.verbose:
         print("patch target:", pfile)
-        print("existing status:", "ENABLED" if is_present else "DISABLED")
+        print("current status:", "ENABLED" if is_present else "DISABLED")
 
     enable = args.enable or args.verify
     disable = args.disable or args.clean
@@ -193,7 +194,7 @@ def manage_config(args, dname):
         except Exception:
             error("config read failed")
     if args.verbose:
-        print("existing config:", value if value else "<none>")
+        print("current config:", value if value else "<none>")
     if args.clean or not args.config:
         return
     if args.config == value:
@@ -209,7 +210,7 @@ def manage_config(args, dname):
         error("config writing failed")
 
 
-def manage_condarc(args, prefix):
+def manage_condarc(args):
     if not (
         args.clean
         or args.set_condarc
@@ -218,7 +219,7 @@ def manage_condarc(args, prefix):
     ):
         return
 
-    tfile = join(prefix, ".condarc")
+    tfile = join(sys.prefix, ".condarc")
     lstart = "# <<< conda_ident <<<"
     lfinish = "# >>> conda_ident >>>"
 
@@ -238,10 +239,10 @@ def manage_condarc(args, prefix):
 
     if args.verbose:
         if extra:
-            print("existing condarc content:")
+            print("current condarc content:")
             print("\n".join("| " + c for c in extra))
         else:
-            print("existing condarc content: <none>")
+            print("current condarc content: <none>")
 
     if args.clean:
         newextra = []
@@ -287,9 +288,11 @@ def manage_condarc(args, prefix):
 
 
 def manage_token(args, dname):
-    if not (
-        args.token and (args.default_channel or args.channel_alias) or args.verbose
-    ):
+    do_update = (
+        bool(args.default_channel or args.channel_alias and args.token)
+        and not args.clean
+    )
+    if not (do_update or args.verbose):
         return
 
     tokens = {}
@@ -305,11 +308,11 @@ def manage_token(args, dname):
 
     if args.verbose:
         if tokens:
-            print("repo tokens:")
+            print("current repo tokens:")
             for k, v in tokens.items():
                 print(" - %s: %s..." % (k, v[:6]))
         else:
-            print("repo tokens: <none>")
+            print("current repo tokens: <none>")
 
     newtokens = {}
     if args.token and (args.channel_alias or args.default_channel):
@@ -320,11 +323,11 @@ def manage_token(args, dname):
         newtokens = tokens
 
     if newtokens == tokens:
-        if not args.clean and args.verbose:
+        if do_update and args.verbose:
             print("no repo token changes required")
         return
     elif args.verbose and newtokens:
-        print("new tokens:")
+        print("new repo tokens:")
         for k, v in newtokens.items():
             print(" - %s: %s..." % (k, v[:6]))
 
@@ -345,23 +348,19 @@ def manage_token(args, dname):
 def main():
     global success
     args = parse_argv()
-    local_dir = dirname(__file__)
-    pkg_name = basename(local_dir)
-    prefix = sys.prefix
-    sp_dir = sysconfig.get_paths()["purelib"]
-    dname = join(prefix, "etc", "conda_ident")
     if args.verbose:
+        pkg_name = basename(dirname(__file__))
         msg = pkg_name + " installer"
         print(msg)
         msg = "-" * len(msg)
         print(msg)
-        print("prefix:", prefix)
-        print("data dir:", dname)
-    manage_patch(args, sp_dir)
+    manage_patch(args)
     if not args.verify:
-        manage_condarc(args, prefix)
+        dname = join(sys.prefix, "etc", "conda_ident")
+        print("config directory:", dname)
         manage_data_dir(args, dname)
         manage_config(args, dname)
+        manage_condarc(args)
         manage_token(args, dname)
     if args.verbose:
         print(msg)
