@@ -213,7 +213,7 @@ A key feature of the `conda_ident` package is the ability
 to embed key configuration information _within the package itself_,
 including any combination of the following:
 
-- The `client_token` configuration value
+- The `client_token` configuration string
 - A custom `default_channels` value to point conda's `defaults`
   metachannel to an alternative repository
 - A standard Conda authentication token for a repository
@@ -230,7 +230,7 @@ The full command utilizes the `install` submodule of the
 
 ```
 python -m conda_ident.install --enable \
-   --client-token <CLIENT_TOKEN> --default-channel <REPO_URL> \
+   --config <CONFIG_STRING> --default-channel <REPO_URL> \
    --set-condarc --repo-token <REPO_TOKEN> \
 ```
 
