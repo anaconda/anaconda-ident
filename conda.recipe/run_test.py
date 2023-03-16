@@ -74,7 +74,7 @@ token_baked = patch.get_baked_binstar_tokens()
 token_env = os.environ.get("REPO_TOKEN") or ""
 if token_env:
     token_chan = calias_env or defchan_env[0]
-    token_chan = '/'.join(token_chan.split("/", 3)[:3]) + "/"
+    token_chan = "/".join(token_chan.split("/", 3)[:3]) + "/"
     token_env = {token_chan: token_env}
 else:
     token_env = None

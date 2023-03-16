@@ -13,26 +13,69 @@ def parse_argv():
     p = argparse.ArgumentParser(description="conda-ident installer")
     g = p.add_mutually_exclusive_group()
     g.add_argument("--enable", action="store_true", help="Enable conda_ident operation")
-    g.add_argument("--disable", action="store_true", help="Disable conda_ident operation")
-    g.add_argument("--clean", action="store_true", help="Disable conda_ident operation and remove configuration data.")
-    p.add_argument("--quiet", dest="verbose", action="store_false", default=True, help="Silent mode.")
-    p.add_argument("--config", default=None, help="Install a hardcoded configuration value.")
-    p.add_argument("--channel-alias", default=None, help="Specify a channel_alias to use for --set-condarc and/or --token.")
-    p.add_argument("--default-channel", action='append', help="Specify a default_channel to use for --set-condarc and/or --token. Multiple channels may be supplied as a comma-separated list or by supplying multiple --default-channel options.")
-    p.add_argument("--set-condarc", action="store_true", default=None, help="Append a default_channels configuration to $CONDA_PREFIX/.condarc. To use this, at least one --default-channel must be supplied.")
-    p.add_argument("--token", default=None, help="Store a token for conda authentication. To use this, either --channel-alias or a full URL in --default-channel must be supplied.")
+    g.add_argument(
+        "--disable", action="store_true", help="Disable conda_ident operation"
+    )
+    g.add_argument(
+        "--clean",
+        action="store_true",
+        help="Disable conda_ident operation and remove configuration data.",
+    )
+    p.add_argument(
+        "--quiet",
+        dest="verbose",
+        action="store_false",
+        default=True,
+        help="Silent mode.",
+    )
+    p.add_argument(
+        "--config", default=None, help="Install a hardcoded configuration value."
+    )
+    p.add_argument(
+        "--channel-alias",
+        default=None,
+        help="Specify a channel_alias to use for --set-condarc and/or --token.",
+    )
+    p.add_argument(
+        "--default-channel",
+        action="append",
+        help="Specify a default_channel to use for --set-condarc and/or --token. "
+        "Multiple channels may be supplied as a comma-separated list or by supplying "
+        "multiple --default-channel options.",
+    )
+    p.add_argument(
+        "--set-condarc",
+        action="store_true",
+        default=None,
+        help="Append a default_channels configuration to $CONDA_PREFIX/.condarc. "
+        "To use this, at least one --default-channel must be supplied.",
+    )
+    p.add_argument(
+        "--token",
+        default=None,
+        help="Store a token for conda authentication. To use this, either "
+        "--channel-alias or a full URL in --default-channel must be supplied.",
+    )
     g.add_argument("--verify", action="store_true", help=argparse.SUPPRESS)
-    p.add_argument("--ignore-missing", action="store_true", default=None, help=argparse.SUPPRESS)
+    p.add_argument(
+        "--ignore-missing", action="store_true", default=None, help=argparse.SUPPRESS
+    )
     args = p.parse_args()
-    if (args.clean or args.verify) and sum(v is not None for v in vars(args).values()) != 5:
+    if (args.clean or args.verify) and sum(
+        v is not None for v in vars(args).values()
+    ) != 5:
         what = "clean" if args.clean else "verify"
         print("WARNING: --%s overrides other operations" % what)
     if args.set_condarc and not args.default_channel:
         print("WARNING: --set-condarc is inoperative without --default-channel\n")
     if args.token and not args.default_channel:
         print("WARNING: --token is inoperative used without --default-channel\n")
-    if (args.default_channel or args.channel_alias) and not (args.token or args.set_condarc):
-        print("WARNING: ---default-channel/--channel-alias should be used with --set-condarc/--token")
+    if (args.default_channel or args.channel_alias) and not (
+        args.token or args.set_condarc
+    ):
+        print(
+            "WARNING: ---default-channel/--channel-alias should be used with --set-condarc/--token"
+        )
     return args
 
 
@@ -47,7 +90,6 @@ def error(what, fatal=False):
     print("-----")
     if fatal:
         print("cannot proceed; exiting.")
-        print(msg)
         sys.exit(-1)
     success = False
 
@@ -64,7 +106,7 @@ def manage_patch(args, sp_dir):
     global PATCH_TEXT
 
     pfile = join(sp_dir, "conda", "base", "context.py")
-    pline = PATCH_TEXT.encode('ascii')
+    pline = PATCH_TEXT.encode("ascii")
     nline = len(pline)
 
     def _read(pfile):
@@ -75,7 +117,7 @@ def manage_patch(args, sp_dir):
             if args and not args.ignore_missing:
                 error("conda_ident installation failed", fatal=True)
             text = b""
-        return text, b"conda_ident" in text[-len(pline) :]
+        return text, b"conda_ident" in text[-nline:]
 
     text, is_present = _read(pfile)
     if args.verbose:
@@ -168,7 +210,12 @@ def manage_config(args, dname):
 
 
 def manage_condarc(args, prefix):
-    if not (args.clean or args.set_condarc and (any(args.default_channel) or args.channel_alias) or args.verbose):
+    if not (
+        args.clean
+        or args.set_condarc
+        and (any(args.default_channel) or args.channel_alias)
+        or args.verbose
+    ):
         return
 
     tfile = join(prefix, ".condarc")
@@ -178,14 +225,13 @@ def manage_condarc(args, prefix):
     result = extra = []
     if exists(tfile):
         try:
-            found_begin = found_end = False
             with open(tfile, "r") as fp:
                 result = fp.read().splitlines()
             if lstart in result and lfinish in result:
                 n1 = result.index(lstart)
                 n2 = result.index(lfinish)
-                extra = result[n1 + 1:n2]
-                del result[n1:n2 + 1]
+                extra = result[n1 + 1 : n2]
+                del result[n1 : n2 + 1]
         except Exception:
             error("reading condarc failed")
             return
@@ -193,7 +239,7 @@ def manage_condarc(args, prefix):
     if args.verbose:
         if extra:
             print("existing condarc content:")
-            print('\n'.join("| " + c for c in extra))
+            print("\n".join("| " + c for c in extra))
         else:
             print("existing condarc content: <none>")
 
@@ -216,7 +262,7 @@ def manage_condarc(args, prefix):
         return
     elif args.verbose and newextra:
         print("new condarc content:")
-        print('\n'.join("| " + c for c in newextra))
+        print("\n".join("| " + c for c in newextra))
 
     if newextra:
         result.append(lstart)
@@ -228,7 +274,7 @@ def manage_condarc(args, prefix):
             print("writing %s condarc..." % what)
         try:
             with open(tfile, "w") as fp:
-                fp.write('\n'.join(result) + '\n')
+                fp.write("\n".join(result) + "\n")
         except Exception:
             error("condarc writing failed")
     elif exists(tfile):
@@ -241,7 +287,9 @@ def manage_condarc(args, prefix):
 
 
 def manage_token(args, dname):
-    if not (args.token and (args.default_channel or args.channel_alias) or args.verbose):
+    if not (
+        args.token and (args.default_channel or args.channel_alias) or args.verbose
+    ):
         return
 
     tokens = {}
@@ -257,16 +305,16 @@ def manage_token(args, dname):
 
     if args.verbose:
         if tokens:
-            print('repo tokens:')
+            print("repo tokens:")
             for k, v in tokens.items():
-                print(' - %s: %s...' % (k, v[:6]))
+                print(" - %s: %s..." % (k, v[:6]))
         else:
-            print('repo tokens: <none>')
+            print("repo tokens: <none>")
 
     newtokens = {}
     if args.token and (args.channel_alias or args.default_channel):
         defchan = args.channel_alias or args.default_channel[0].split(",", 1)[0]
-        defchan = '/'.join(defchan.strip().split('/', 3)[:3]) + "/"
+        defchan = "/".join(defchan.strip().split("/", 3)[:3]) + "/"
         newtokens[defchan] = args.token.strip()
     else:
         newtokens = tokens
@@ -278,7 +326,7 @@ def manage_token(args, dname):
     elif args.verbose and newtokens:
         print("new tokens:")
         for k, v in newtokens.items():
-            print(' - %s: %s...' % (k, v[:6]))
+            print(" - %s: %s..." % (k, v[:6]))
 
     if args.verbose:
         try:
@@ -322,5 +370,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-
-

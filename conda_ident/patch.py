@@ -19,7 +19,7 @@ from conda.auxlib.decorators import memoize, memoizedproperty
 from conda.cli import install as cli_install
 
 from logging import getLogger
-from os.path import join, isdir, dirname, basename, expanduser, exists
+from os.path import join, isdir, basename, expanduser, exists
 from urllib.parse import unquote_plus
 
 
