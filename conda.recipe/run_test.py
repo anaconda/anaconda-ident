@@ -5,6 +5,7 @@ import subprocess
 from conda_ident import patch
 from ruamel.yaml import safe_load
 
+os.environ["CONDA_IDENT_DEBUG"] = "1"
 
 print("Environment variables:")
 print("-----")
@@ -12,8 +13,11 @@ print("CONFIG_STRING:", os.environ.get("CONFIG_STRING") or "")
 print("DEFAULT_CHANNELS:", os.environ.get("DEFAULT_CHANNELS") or "")
 print("CHANNEL_ALIAS:", os.environ.get("CHANNEL_ALIAS") or "")
 print("REPO_TOKEN:", os.environ.get("REPO_TOKEN") or "")
+print("CONDA_IDENT_DEBUG:", os.environ.get("CONDA_IDENT_DEBUG") or "")
 print("-----")
 subprocess.run(["python", "-m", "conda_ident.install"])
+print("-----")
+subprocess.run(["python", "-m", "conda", "info"])
 print("-----")
 
 # Verify baked configurations, if any
