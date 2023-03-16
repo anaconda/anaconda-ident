@@ -2,6 +2,7 @@ import base64
 import getpass
 import os
 import platform
+import sys
 import hashlib
 
 from conda.base.context import (
@@ -11,6 +12,7 @@ from conda.base.context import (
     ParameterLoader,
     PrimitiveParameter,
 )
+from conda.gateways.connection import session as c_session
 from conda.gateways.connection.session import CondaHttpAuth
 from conda.gateways import anaconda_client as a_client
 from conda.auxlib.decorators import memoize, memoizedproperty
@@ -24,9 +26,8 @@ from urllib.parse import unquote_plus
 log = getLogger(__name__)
 
 
-__dir__ = dirname(__file__)
-BAKED_TOKEN_CONFIG = join(__dir__, "client_token")
-BAKED_TOKEN_DIR = join(__dir__, "tokens")
+BAKED_TOKEN_DIR = join(sys.prefix, "etc", "conda_ident")
+BAKED_TOKEN_CONFIG = join(BAKED_TOKEN_DIR, "config")
 
 
 _client_token_formats = {
@@ -221,22 +222,6 @@ def _new_read_binstar_tokens():
     return tokens
 
 
-# For testing only
-def get_baked_default_channels():
-    fpath = join(os.environ["CONDA_PREFIX"], ".condarc")
-    print("CONDARC:", fpath)
-    if not exists(fpath):
-        print("DOES NOT EXIST")
-        return None
-    with open(fpath, "r") as fp:
-        data = fp.read()
-        print(data)
-    data = [d for d in data.splitlines() if d.startswith("default_channels:")]
-    if not data:
-        return None
-    return data[-1]
-
-
 # Save the raw token data in Context class attributes
 # to ensure they are passed between subprocesses
 if not hasattr(Context, "client_token_raw"):
@@ -265,10 +250,12 @@ if not hasattr(cli_install, "_old_check_prefix"):
     context.checked_prefix = None
 
 # conda.gateways.anaconda_client.read_binstar_tokens
+# conda.gateways.connection.session.read_binstar_tokens
 # Inserts hardcoded repo tokens
 if not hasattr(a_client, "_old_read_binstar_tokens"):
     a_client._old_read_binstar_tokens = a_client.read_binstar_tokens
     a_client.read_binstar_tokens = _new_read_binstar_tokens
+    c_session.read_binstar_tokens = _new_read_binstar_tokens
 
 # conda.base.context.Context
 # Adds client_token as a managed string config parameter

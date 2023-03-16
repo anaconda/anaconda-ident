@@ -18,12 +18,16 @@ on:
         description: 'Build string'
         default: 'custom'
         required: true
-      repo_url:
-        description: 'Custom default_channels URL'
+      default_channels:
+        description: 'Comma-separated list of default_channels values'
+        default: ''
+        required: false
+      channel_alias:
+        description: 'Channel alias'
         default: ''
         required: false
       repo_token:
-        description: 'Custom repo token'
+        description: 'Repository token'
         default: ''
         required: false
 jobs:

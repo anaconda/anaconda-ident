@@ -1,16 +1,20 @@
-client_token:
+config_string:
 - userhost
 - default
 - uso:testorg1
-custom_build:
-- test_a
-- test_b
-- test_c
-repo_url:
-- https://urla.example.com/
+default_channels:
+- https://urla.example.com/main
+- main,r
+- main,https://repo.anaconda.com/pkgs/msys2
+channel_alias:
+- ""
 - https://urlb.example.com/repo
-- https://urlc.example.com/api/repo/
+- https://urlc.example.com
 repo_token:
 - token_a
 - token_b
 - token_c
+custom_build:
+- test_a
+- test_b
+- test_c
