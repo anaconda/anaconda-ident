@@ -157,8 +157,18 @@ for flag in flags:
             end="",
         )
         os.environ["CONDA_CLIENT_TOKEN"] = param
+        # Make sure to leave override-channels and the full channel URL in here.
+        # This allows this command to run fully no matter what we do to channel_alias
+        # and default_channels
         proc = subprocess.run(
-            ["conda", "search", "-vvv", "--override-channels", "-c", "fakechannel"],
+            [
+                "conda",
+                "search",
+                "-vvv",
+                "--override-channels",
+                "-c",
+                "https://repo.anaconda.com/pkgs/fakechannel",
+            ],
             check=False,
             capture_output=True,
             text=True,
