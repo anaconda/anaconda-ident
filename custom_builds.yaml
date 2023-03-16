@@ -7,11 +7,11 @@ default_channels:
 - https://urlb.example.com/repo/main,https://urlb.example.com/repo/r
 - main,https://repo.anaconda.com/pkgs/msys2
 # Experiencing an apparent bug in conda-build that collapses
-# the variants if I have a blank string in here instead of "none"
+# the variants if I have a blank string in here instead of "blank"
 # so we are fixing this here and in meta.yaml
 channel_alias:
 - https://urla.example.com/repo
-- none
+- "blank"
 - https://urlc.example.com
 repo_token:
 - token_a
