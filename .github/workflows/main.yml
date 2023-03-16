@@ -8,28 +8,6 @@ on:
   pull_request:
     branches:
       - main
-  workflow_dispatch:
-    inputs:
-      token_config:
-        description: 'Client token configuration string'
-        default: 'default'
-        required: true
-      build_string:
-        description: 'Build string'
-        default: 'custom'
-        required: true
-      default_channels:
-        description: 'Comma-separated list of default_channels values'
-        default: ''
-        required: false
-      channel_alias:
-        description: 'Channel alias'
-        default: ''
-        required: false
-      repo_token:
-        description: 'Repository token'
-        default: ''
-        required: false
 jobs:
   package:
     defaults:
@@ -53,16 +31,6 @@ jobs:
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda build conda.recipe
-    - name: Build the package (custom)
-      if: github.event_name == 'workflow_dispatch'
-      run: |
-        source $CONDA/etc/profile.d/conda.sh
-        cfg=${{ github.event.inputs.token_config }}
-        str=${{ github.event.inputs.build_string }}
-        url=${{ github.event.inputs.repo_url }}
-        tok=${{ github.event.inputs.repo_token }}
-        variant='{"client_token":"'$cfg'","custom_build":"'$str'","repo_url":"'$url'","repo_token":'$tok'"}'
-        conda build conda.recipe --variants "$variant"
     - name: Smoke test the baked build
       if: github.event_name != 'workflow_dispatch'
       run: |
