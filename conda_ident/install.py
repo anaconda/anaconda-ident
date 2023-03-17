@@ -205,7 +205,7 @@ def _print_default_channels(what, args, config):
         elif not value:
             value = "[]"
         else:
-            value = "\n| " + "\n| ".join(value)
+            value = "\n - " + "\n - ".join(value)
         print("%s default_channels: %s" % (what, value))
 
 
