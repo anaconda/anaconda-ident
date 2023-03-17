@@ -60,10 +60,6 @@ def parse_argv():
     ) != 5:
         what = "clean" if args.clean else "verify"
         print("WARNING: --%s overrides other operations" % what)
-    if args.token and not args.default_channel:
-        print("WARNING: --token is inoperative used without --default-channel\n")
-    if (args.default_channel or args.channel_alias) and not args.token:
-        print("WARNING: ---default-channel/--channel-alias should be used with --token")
     return args
 
 
