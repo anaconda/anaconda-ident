@@ -34,23 +34,16 @@ def parse_argv():
     p.add_argument(
         "--default-channel",
         action="append",
-        help="Specify a default channel for use with --set-condarc and/or --token. "
+        help="Specify a default channel. "
         "Multiple channels may be supplied as a comma-separated list or by supplying "
         "multiple --default-channel options.",
     )
     p.add_argument(
         "--channel-alias",
         default=None,
-        help="Specify a channel_alias to use with --set-condarc and/or --token. "
+        help="Specify a channel_alias. "
         "This is recomended only if all channels are sourced from the same repository; "
         "e.g., an instance of Anaconda Server.",
-    )
-    p.add_argument(
-        "--set-condarc",
-        action="store_true",
-        default=None,
-        help="Append a default_channels configuration to $CONDA_PREFIX/.condarc. "
-        "To use this, at least one --default-channel must be supplied.",
     )
     p.add_argument(
         "--token",
@@ -69,16 +62,10 @@ def parse_argv():
     ) != 5:
         what = "clean" if args.clean else "verify"
         print("WARNING: --%s overrides other operations" % what)
-    if args.set_condarc and not args.default_channel:
-        print("WARNING: --set-condarc is inoperative without --default-channel\n")
     if args.token and not args.default_channel:
         print("WARNING: --token is inoperative used without --default-channel\n")
-    if (args.default_channel or args.channel_alias) and not (
-        args.token or args.set_condarc
-    ):
-        print(
-            "WARNING: ---default-channel/--channel-alias should be used with --set-condarc/--token"
-        )
+    if (args.default_channel or args.channel_alias) and not args.token:
+        print("WARNING: ---default-channel/--channel-alias should be used with --token")
     return args
 
 
@@ -171,187 +158,142 @@ def manage_patch(args):
         print("new status:", "ENABLED" if is_present else "DISABLED")
 
 
-def manage_data_dir(args, dname):
-    if bool(args.clean) == isdir(dname) and (args.clean or args.config or args.token):
-        if args.verbose:
-            print(("removing" if args.clean else "creating"), "directory...")
-        try:
-            if args.clean:
-                shutil.rmtree(dname)
-            else:
-                os.makedirs(dname, exist_ok=True)
-        except Exception:
-            error("directory operation failed")
-    return dname if isdir(dname) else None
+__yaml = None
 
 
-def manage_config(args, dname):
-    if not (args.config or args.verbose):
-        return
-    tfile = join(dname, "config")
-    value = None
-    if exists(tfile):
+def _yaml():
+    global __yaml
+    if __yaml is None:
         try:
-            with open(tfile, "r") as fp:
-                value = fp.read().strip()
+            import ruamel.yaml as yaml
         except Exception:
-            error("config read failed")
-    if args.verbose:
-        print("current config:", value if value else "<none>")
-    if args.clean or not args.config:
-        return
-    if args.config == value:
-        if args.verbose:
-            print("no config change required")
-        return
-    if args.verbose:
-        print("new config:", args.config)
+            try:
+                import ruamel_yaml as yaml
+            except Exception:
+                try:
+                    import yaml
+                except Exception:
+                    error("failed to load yaml library")
+                    return None
+        __yaml = yaml
+    return __yaml
+
+
+def read_condarc(args, fname):
+    if not exists(fname) or args.clean:
+        if args.verbose and not args.clean:
+            print("no conda_ident condarc to read")
+        return {}
     try:
-        with open(tfile, "w") as fp:
-            fp.write(args.config)
+        if args.verbose:
+            print("reading conda_ident condarc...")
+        with open(fname, "r") as fp:
+            return _yaml().safe_load(fp)
     except Exception:
-        error("config writing failed")
+        error("config load failed")
 
 
-def manage_condarc(args):
-    if not (
-        args.clean
-        or args.set_condarc
-        and (any(args.default_channel) or args.channel_alias)
-        or args.verbose
-    ):
-        return
-
-    tfile = join(sys.prefix, ".condarc")
-    lstart = "# <<< conda_ident <<<"
-    lfinish = "# >>> conda_ident >>>"
-
-    result = extra = []
-    if exists(tfile):
-        try:
-            with open(tfile, "r") as fp:
-                result = fp.read().splitlines()
-            if lstart in result and lfinish in result:
-                n1 = result.index(lstart)
-                n2 = result.index(lfinish)
-                extra = result[n1 + 1 : n2]
-                del result[n1 : n2 + 1]
-        except Exception:
-            error("reading condarc failed")
-            return
-
+def _print_config(what, args, config):
     if args.verbose:
-        if extra:
-            print("current condarc content:")
-            print("\n".join("| " + c for c in extra))
+        value = config.get("client_token")
+        print("%s config: %s" % (what, value or "<default>"))
+
+
+def _print_default_channels(what, args, config):
+    if args.verbose:
+        value = config.get("default_channels")
+        if value is None:
+            value = "<none>"
+        elif not value:
+            value = "[]"
         else:
-            print("current condarc content: <none>")
-
-    if args.clean:
-        newextra = []
-    elif args.set_condarc and (any(args.default_channel) or args.channel_alias):
-        newextra = ["add_anaconda_token: true"]
-        if args.channel_alias:
-            newextra.append("channel_alias: " + args.channel_alias)
-        newextra.append("default_channels:")
-        for c1 in args.default_channel:
-            for c2 in c1.split(","):
-                newextra.append("  - " + c2.strip().rstrip("/"))
-    else:
-        return
-
-    if newextra == extra:
-        if args.verbose:
-            print("no condarc changes required")
-        return
-    elif args.verbose and newextra:
-        print("new condarc content:")
-        print("\n".join("| " + c for c in newextra))
-
-    if newextra:
-        result.append(lstart)
-        result.extend(newextra)
-        result.append(lfinish)
-    if result:
-        if args.verbose:
-            what = "modified" if newextra else "cleaned"
-            print("writing %s condarc..." % what)
-        try:
-            with open(tfile, "w") as fp:
-                fp.write("\n".join(result) + "\n")
-        except Exception:
-            error("condarc writing failed")
-    elif exists(tfile):
-        if args.verbose:
-            print("removing condarc...")
-        try:
-            os.unlink(tfile)
-        except Exception:
-            error("condarc removal failed")
+            value = "\n| " + "\n| ".join(value)
+        print("%s default_channels: %s" % (what, value))
 
 
-def manage_token(args, dname):
-    do_update = (
-        bool(args.default_channel or args.channel_alias and args.token)
-        and not args.clean
-    )
-    if not (do_update or args.verbose):
-        return
-
-    tokens = {}
-    try:
-        if isdir(dname):
-            for entry in os.scandir(dname):
-                if entry.name.endswith(".token"):
-                    url = unquote_plus(entry.name[:-6])
-                    with open(entry.path) as f:
-                        tokens[url] = f.read().strip()
-    except Exception:
-        error("token directory read failure")
-
+def _print_channel_alias(what, args, config):
     if args.verbose:
+        value = config.get("channel_alias")
+        print("%s channel_alias: %s" % (what, value or "<none>"))
+
+
+def _print_tokens(what, args, config):
+    if args.verbose:
+        tokens = config.get("binstar_tokens")
         if tokens:
-            print("current repo tokens:")
+            print("%s repo tokens:" % what)
             for k, v in tokens.items():
                 print(" - %s: %s..." % (k, v[:6]))
         else:
-            print("current repo tokens: <none>")
+            print("%s repo tokens: <none>" % what)
 
-    newtokens = {}
-    if args.token and (args.channel_alias or args.default_channel):
-        # Prefer full URLs in default_channel over channel_alias
-        defchan = []
+
+def _set_or_delete(d, k, v):
+    if v:
+        d[k] = v
+    elif k in d:
+        del d[k]
+
+
+def manage_condarc(args, condarc):
+    if args.clean:
+        return {}
+    condarc = condarc.copy()
+    # config string
+    _print_config("current", args, condarc)
+    if args.config is not None:
+        _set_or_delete(condarc, "client_token", args.config)
+        _print_config("new", args, condarc)
+    # default_channels
+    _print_default_channels("current", args, condarc)
+    if args.default_channel:
+        nchan = []
         for c1 in args.default_channel:
             for c2 in c1.split(","):
-                if "/" in c2:
-                    defchan.append(c2)
-        defchan = defchan[0] if defchan else args.channel_alias
-        defchan = "/".join(defchan.strip().split("/", 3)[:3]) + "/"
-        newtokens[defchan] = args.token.strip()
-    else:
-        newtokens = tokens
+                if c2.strip():
+                    nchan.append(c2.strip().rstrip("/"))
+        _set_or_delete(condarc, "default_channels", nchan)
+        _print_default_channels("new", args, condarc)
+    # channel alias
+    _print_channel_alias("current", args, condarc)
+    if args.channel_alias is not None:
+        _set_or_delete(condarc, "channel_alias", args.channel_alias)
+        _print_channel_alias("new", args, condarc)
+    # tokens
+    _print_tokens("current", args, condarc)
+    if args.token is not None:
+        tokens = {}
+        if args.token.strip():
+            defchan = condarc.get("default_channels", []) + [condarc.get("channel_alias", "")]
+            defchan = [c for c in defchan if "/" in c]
+            if defchan:
+                defchan = "/".join(defchan[0].strip().split("/", 3)[:3]) + "/"
+                tokens[defchan] = args.token.strip()
+        _set_or_delete(condarc, "binstar_tokens", tokens)
+        _print_tokens("new", args, condarc)
+    _set_or_delete(condarc, "add_anaconda_token", bool(condarc.get("binstar_tokens")))
+    return condarc
 
-    if newtokens == tokens:
-        if do_update and args.verbose:
-            print("no repo token changes required")
+
+def write_condarc(args, fname, condarc):
+    if not condarc:
+        if exists(fname):
+            if args.verbose:
+                print("removing conda_ident condarc...")
+            try:
+                os.unlink(fname)
+            except Exception:
+                error("condarc removal failed")
         return
-    elif args.verbose and newtokens:
-        print("new repo tokens:")
-        for k, v in newtokens.items():
-            print(" - %s: %s..." % (k, v[:6]))
-
     if args.verbose:
-        try:
-            print(("updating" if tokens else "creating"), "repo token...")
-            for key in set(tokens) | set(newtokens):
-                fpath = join(dname, quote_plus(key) + ".token")
-                if key in newtokens:
-                    with open(fpath, "w") as fp:
-                        fp.write(newtokens[key])
-                else:
-                    os.unlink(fpath)
-        except Exception:
-            error("repo token writing failed")
+        what = "updating" if exists(fname) else "creating"
+        print("%s conda_ident condarc..." % what)
+    try:
+        os.makedirs(dirname(fname), exist_ok=True)
+        with open(fname, "w") as fp:
+            _yaml().dump(condarc, fp)
+    except Exception:
+        error("condarc update failed")
 
 
 def main():
@@ -365,12 +307,13 @@ def main():
         print(msg)
     manage_patch(args)
     if not args.verify:
-        dname = join(sys.prefix, "etc", "conda_ident")
-        print("config directory:", dname)
-        manage_data_dir(args, dname)
-        manage_config(args, dname)
-        manage_condarc(args)
-        manage_token(args, dname)
+        fname = join(sys.prefix, "etc", "conda_ident.yml")
+        print("config file:", fname)
+        condarc = read_condarc(args, fname)
+        if condarc is not None:
+            newcondarc = manage_condarc(args, condarc)
+            if condarc != newcondarc:
+                write_condarc(args, fname, newcondarc)
     if args.verbose:
         print(msg)
     return 0 if success else -1

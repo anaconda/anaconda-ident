@@ -5,6 +5,7 @@ import platform
 import sys
 import hashlib
 
+import conda.base.context as c_context
 from conda.base.context import (
     Context,
     context,
@@ -26,8 +27,7 @@ from urllib.parse import unquote_plus
 log = getLogger(__name__)
 
 
-BAKED_TOKEN_DIR = join(sys.prefix, "etc", "conda_ident")
-BAKED_TOKEN_CONFIG = join(BAKED_TOKEN_DIR, "config")
+BAKED_CONDARC = join(sys.prefix, "etc", "conda_ident.yml")
 DEBUG = bool(os.environ.get("CONDA_IDENT_DEBUG"))
 
 
@@ -119,24 +119,23 @@ def get_hostname():
     return value
 
 
-# Separate this out so it can be called in testing
-def get_baked_token_config():
-    if exists(BAKED_TOKEN_CONFIG):
-        with open(BAKED_TOKEN_CONFIG, "r") as fp:
-            return fp.read().strip() or None
+def get_config_value(key):
+    for loc, rdict in context.raw_data.items():
+        if key in rdict:
+            return rdict[key]._raw_value, loc
+    else:
+        return None, None
 
 
 def client_token_type():
-    token_type = get_baked_token_config()
-    if token_type:
-        log.debug("Hardcoded token config: %s", token_type)
-    if token_type is None:
-        token_type = context.client_token
-        if token_type:
-            log.debug("Token config from context: %s", token_type)
-    if token_type is None:
+    token_type, loc = get_config_value('client_token')
+    if loc is None:
         log.debug("Selecting default token config")
         token_type = "default"
+    elif loc == BAKED_CONDARC:
+        log.debug("Hardcoded token config: %s", token_type)
+    else:
+        log.debug("Token config from context: %s", token_type)
     fmt_parts = token_type.split(":", 1)
     fmt = _client_token_formats.get(fmt_parts[0], fmt_parts[0])
     if len(fmt_parts) > 1:
@@ -205,21 +204,11 @@ def _new_check_prefix(prefix, json=False):
     cli_install._old_check_prefix(prefix, json)
 
 
-# Separate this out so it can be called in testing
-def get_baked_binstar_tokens():
-    tokens = {}
-    if isdir(BAKED_TOKEN_DIR):
-        for tkn_entry in os.scandir(BAKED_TOKEN_DIR):
-            if tkn_entry.name.endswith(".token"):
-                url = unquote_plus(tkn_entry.name[:-6])
-                with open(tkn_entry.path) as f:
-                    tokens[url] = f.read()
-    return tokens
-
-
 def _new_read_binstar_tokens():
     tokens = a_client._old_read_binstar_tokens()
-    tokens.update(get_baked_binstar_tokens())
+    n_tokens, _ = get_config_value('binstar_tokens')
+    if n_tokens is not None:
+        tokens.update(n_tokens)
     return tokens
 
 
@@ -227,15 +216,22 @@ if DEBUG:
     print("CONDA_IDENT DEBUGGING ENABLED")
 
 
+# conda.base.context.SEARCH_PATH
+# Add conda_ident's condarc location
+if not hasattr(c_context, "_OLD_SEARCH_PATH"):
+    sp = c_context._OLD_SEARCH_PATH = c_context.SEARCH_PATH
+    n_sys = min(k for k, v in enumerate(sp) if v.startswith('$CONDA_ROOT'))
+    c_context.SEARCH_PATH = sp[:n_sys] + (BAKED_CONDARC,) + sp[n_sys:]
+if DEBUG:
+    print("| SEARCH_PATH:", "patched" if BAKED_CONDARC in c_context.SEARCH_PATH else "UNPATCHED")
+
+
 # Save the raw token data in Context class attributes
 # to ensure they are passed between subprocesses
 if not hasattr(Context, "client_token_raw"):
     initialize_raw_tokens()
-    if DEBUG:
-        print(
-            "| RAW TOKEN:",
-            "set" if getattr(context, "client_token_raw", None) else "MISSING",
-        )
+if DEBUG:
+    print("| RAW TOKEN:", "loaded" if getattr(context, "client_token_raw", None) else "MISSING")
 
 # conda.base.context.Context.user_agent
 # Adds the ident token to the user agent string
@@ -244,24 +240,21 @@ if not hasattr(Context, "_old_user_agent"):
     # Using a different name ensures that this is stored
     # in sthe cache in a different place than the original
     Context.user_agent = memoizedproperty(_new_user_agent)
-    if DEBUG:
-        print(
-            "| USER_AGENT:",
-            "patched" if getattr(Context, "_old_user_agent", None) else "UNPATCHED",
-        )
+if DEBUG:
+    print("| USER AGENT:" "patched" if getattr(Context, "_old_user_agent", None) else "UNPATCHED")
 
 # conda.gateways.connection.session.CondaHttpAuth
 # Adds the X-Conda-Ident header to all conda requests
 if not hasattr(CondaHttpAuth, "_old_apply_basic_auth"):
     CondaHttpAuth._old_apply_basic_auth = CondaHttpAuth._apply_basic_auth
     CondaHttpAuth._apply_basic_auth = staticmethod(_new_apply_basic_auth)
-    if DEBUG:
-        print(
-            "| CONDA_AUTH:",
-            "patched"
-            if getattr(CondaHttpAuth, "_old_apply_basic_auth", None)
-            else "UNPATCHED",
-        )
+if DEBUG:
+    print(
+        "| CONDA_AUTH:",
+        "patched"
+        if getattr(CondaHttpAuth, "_old_apply_basic_auth", None)
+        else "UNPATCHED",
+    )
 
 # conda.cli.install.check_prefix
 # Collects the prefix computed there so that we can properly
