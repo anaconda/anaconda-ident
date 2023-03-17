@@ -5,6 +5,7 @@ import subprocess
 from conda_ident import patch
 from ruamel.yaml import safe_load
 from conda.base.context import context
+
 context.__init__()
 
 os.environ["CONDA_IDENT_DEBUG"] = "1"
@@ -18,16 +19,16 @@ print("REPO_TOKEN:", os.environ.get("REPO_TOKEN") or "")
 print("CONDA_IDENT_DEBUG:", os.environ.get("CONDA_IDENT_DEBUG") or "")
 print("-----")
 p = subprocess.run(["python", "-m", "conda_ident.install"], capture_output=True)
-print(p.stdout.decode('utf-8').strip())
+print(p.stdout.decode("utf-8").strip())
 print("-----")
 p = subprocess.run(["python", "-m", "conda", "info"], capture_output=True)
-print(p.stdout.decode('utf-8').strip())
+print(p.stdout.decode("utf-8").strip())
 print("-----")
 
 # Verify baked configurations, if any
 success = True
 config_env = os.environ.get("CONFIG_STRING") or ""
-config_baked, _ = patch.get_config_value('client_token')
+config_baked, _ = patch.get_config_value("client_token")
 if not config_env and config_baked is not None:
     print("Unexpected baked configuration:", config_baked)
     success = False
@@ -40,7 +41,7 @@ elif config_env and config_baked != config_env:
 elif config_env:
     print("Running with baked configuration:", config_env)
 
-defchan_baked, _ = patch.get_config_value('default_channels')
+defchan_baked, _ = patch.get_config_value("default_channels")
 defchan_env_s = os.environ.get("DEFAULT_CHANNELS") or ""
 defchan_env = [c.rstrip("/") for c in defchan_env_s.split(",")] if defchan_env_s else []
 if not defchan_env_s and defchan_baked:
@@ -55,7 +56,7 @@ elif defchan_env_s and defchan_env != defchan_baked:
 elif defchan_env:
     print("Baked default channels:", defchan_env)
 
-calias_baked, _ = patch.get_config_value('channel_alias')
+calias_baked, _ = patch.get_config_value("channel_alias")
 calias_env = os.environ.get("CHANNEL_ALIAS") or ""
 if not calias_env and calias_baked is not None:
     print("Unexpected baked channel alias:", calias_baked)
@@ -71,7 +72,7 @@ elif calias_env:
 
 # In a "baked" configuration, the client token config is
 # hardcoded into the package itself
-token_baked, _ = patch.get_config_value('binstar_tokens')
+token_baked, _ = patch.get_config_value("binstar_tokens")
 token_baked = dict(token_baked or {})
 token_env = os.environ.get("REPO_TOKEN") or ""
 if token_env:
@@ -143,8 +144,10 @@ for flag in flags:
     if flag:
         print("")
         print("----")
-        p = subprocess.run(["python", "-m", "conda_ident.install", flag], capture_output=True)
-        print(p.stdout.decode('utf-8'))
+        p = subprocess.run(
+            ["python", "-m", "conda_ident.install", flag], capture_output=True
+        )
+        print(p.stdout.decode("utf-8"))
         print("----")
         print("")
     is_enabled = flag != "--disable"
@@ -159,7 +162,10 @@ for flag in flags:
             "{:{w1}} {:{w2}} ".format(param, test_fields, w1=max_param, w2=max_field),
             end="",
         )
-        subprocess.run(["python", "-m", "conda_ident.install", "--config", param], capture_output=True)
+        subprocess.run(
+            ["python", "-m", "conda_ident.install", "--config", param],
+            capture_output=True,
+        )
         # Make sure to leave override-channels and the full channel URL in here.
         # This allows this command to run fully no matter what we do to channel_alias
         # and default_channels
