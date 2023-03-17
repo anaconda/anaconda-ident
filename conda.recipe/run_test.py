@@ -76,8 +76,8 @@ token_baked, _ = patch.get_config_value("binstar_tokens")
 token_baked = dict(token_baked or {})
 token_env = os.environ.get("REPO_TOKEN") or ""
 if token_env:
-    token_chan = [c for c in defchan_env + [calias_env] if c and "/" in c][0]
-    token_chan = "/".join(token_chan.split("/", 3)[:3]) + "/"
+    token_chan = [c for c in defchan_env + [calias_env] if c and "/" in c]
+    token_chan = "/".join(token_chan[0].split("/", 3)[:3]) + "/" if token_chan else ""
     token_env = {token_chan: token_env}
 else:
     token_env = None

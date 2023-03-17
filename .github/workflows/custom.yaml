@@ -29,7 +29,7 @@ jobs:
         shell: bash
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: ubuntu-latest
     runs-on: ${{ matrix.os }}
     steps:
     - name: Retrieve the source code
@@ -41,7 +41,6 @@ jobs:
         source $CONDA/etc/profile.d/conda.sh
         conda install conda-build anaconda-client
     - name: Build the package
-      if: github.event_name == 'workflow_dispatch'
       run: |
         source $CONDA/etc/profile.d/conda.sh
         str=${{ github.event.inputs.build_string }}
@@ -51,8 +50,16 @@ jobs:
         rtk=${{ github.event.inputs.repo_token }}
         variant='{"custom_build":"'$str'","config_string":"'$cfg'","default_channels":"'$def'","channel_alias":"'$cal'","repo_token":"'$rtk'"}'
         conda build conda.recipe --variants "$variant"
+    - name: Smoke test
+      run: |
+        source $CONDA/etc/profile.d/conda.sh
+        export CONFIG_STRING=${{ github.event.inputs.config_string }}
+        export DEFAULT_CHANNELS=${{ github.event.inputs.default_channels }}
+        export CHANNEL_ALIAS=${{ github.event.inputs.channel_alias }}
+        export REPO_TOKEN=${{ github.event.inputs.repo_token }}
+        conda create -n testenv local::conda-ident
+        conda run -n testenv python conda.recipe/run_test.py
     - name: Upload to anaconda.org
-      if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
       env:
         ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         GITHUB_REF: ${{ github.ref }}
