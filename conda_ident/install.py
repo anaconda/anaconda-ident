@@ -1,12 +1,10 @@
 import sysconfig
 import traceback
 import argparse
-import shutil
 import sys
 import os
 
-from urllib.parse import quote_plus, unquote_plus
-from os.path import basename, dirname, exists, isdir, join
+from os.path import basename, dirname, exists, join
 
 
 def parse_argv():
@@ -264,7 +262,9 @@ def manage_condarc(args, condarc):
     if args.token is not None:
         tokens = {}
         if args.token.strip():
-            defchan = condarc.get("default_channels", []) + [condarc.get("channel_alias", "")]
+            defchan = condarc.get("default_channels", []) + [
+                condarc.get("channel_alias", "")
+            ]
             defchan = [c for c in defchan if "/" in c]
             if defchan:
                 defchan = "/".join(defchan[0].strip().split("/", 3)[:3]) + "/"
