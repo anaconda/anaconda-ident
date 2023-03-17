@@ -47,7 +47,7 @@ jobs:
         str=${{ github.event.inputs.build_string }}
         cfg=${{ github.event.inputs.config_string }}
         def=${{ github.event.inputs.default_channels }}
-        cal=${{ github.event.inputs. }}
+        cal=${{ github.event.inputs.channel_alias }}
         rtk=${{ github.event.inputs.repo_token }}
         variant='{"custom_build":"'$str'","config_string":"'$cfg'","default_channels":"'$def'","channel_alias":'$cal'","repo_token":'$rtk'"}'
         conda build conda.recipe --variants "$variant"
