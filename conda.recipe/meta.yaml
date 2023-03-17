@@ -26,6 +26,7 @@ requirements:
     - setuptools
     - wheel
     - pip
+    - ruamel.yaml  # [config_string or default_channels or channel_alias or repo_token]
   run:
     - python
     {% for dep in data['install_requires'] %}
