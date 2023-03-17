@@ -44,12 +44,13 @@ jobs:
       if: github.event_name == 'workflow_dispatch'
       run: |
         source $CONDA/etc/profile.d/conda.sh
-        export CUSTOM_BUILD="${{ github.event.inputs.build_string }}"
-        export CONFIG_STRING="${{ github.event.inputs.config_string }}"
-        export DEFAULT_CHANNELS="${{ github.event.inputs.default_channels }}"
-        export CHANNEL_ALIAS="${{ github.event.inputs.channel_alias }}"
-        export REPO_TOKEN="${{ github.event.inputs.repo_token }}"
-        conda build conda.recipe
+        str=${{ github.event.inputs.build_string }}
+        cfg=${{ github.event.inputs.config_string }}
+        def=${{ github.event.inputs.default_channels }}
+        cal=${{ github.event.inputs.channel_alias }}
+        rtk=${{ github.event.inputs.repo_token }}
+        variant='{"custom_build":"'$str'","config_string":"'$cfg'","default_channels":"'$def'","channel_alias":"'$cal'","repo_token":"'$rtk'"}'
+        conda build conda.recipe --variants "$variant"
     - name: Upload to anaconda.org
       if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
       env:
