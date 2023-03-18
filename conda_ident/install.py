@@ -304,7 +304,8 @@ def main():
     manage_patch(args)
     if not args.verify:
         fname = join(sys.prefix, "etc", "conda_ident.yml")
-        print("config file:", fname)
+        if args.verbose:
+            print("config file:", fname)
         condarc = read_condarc(args, fname)
         if condarc is not None:
             newcondarc = manage_condarc(args, condarc)
