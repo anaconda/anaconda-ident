@@ -8,47 +8,64 @@ from os.path import basename, dirname, exists, join
 
 
 def parse_argv():
-    p = argparse.ArgumentParser(description="conda-ident installer")
+    p = argparse.ArgumentParser()
     g = p.add_mutually_exclusive_group()
-    g.add_argument("--enable", action="store_true", help="Enable conda_ident operation")
     g.add_argument(
-        "--disable", action="store_true", help="Disable conda_ident operation"
-    )
-    g.add_argument(
-        "--clean",
+        "--enable",
         action="store_true",
-        help="Disable conda_ident operation and remove configuration data.",
+        help="Enable conda_ident operation. "
+        "Without further configuration, this enables randomized telemetry.",
+    )
+    g.add_argument(
+        "--disable",
+        action="store_true",
+        help="Disable conda_ident operation. "
+        "The configuration file is left in place, so that full operation can "
+        "resume with a call to --enable. To remove the settings as well, use the "
+        "--clean option instead.",
     )
     p.add_argument(
-        "--quiet",
-        dest="verbose",
-        action="store_false",
-        default=True,
-        help="Silent mode.",
-    )
-    p.add_argument(
-        "--config", default=None, help="Install a hardcoded configuration value."
+        "--config",
+        default=None,
+        help="Set the telemetry configuration. "
+        "Supply an empty string to revert to the default setting.",
     )
     p.add_argument(
         "--default-channel",
         action="append",
         help="Specify a default channel. "
         "Multiple channels may be supplied as a comma-separated list or by supplying "
-        "multiple --default-channel options.",
+        "multiple --default-channel options. Supply an empty string to clear the "
+        "default channel list completely.",
     )
     p.add_argument(
         "--channel-alias",
         default=None,
         help="Specify a channel_alias. "
         "This is recomended only if all channels are sourced from the same repository; "
-        "e.g., an instance of Anaconda Server.",
+        "e.g., an instance of Anaconda Server. Supply an empty string to clear the "
+        "channel alias setting.",
     )
     p.add_argument(
         "--token",
         default=None,
         help="Store a token for conda authentication. To use this, a full channel "
         "URL is required. This will either be determined from the first full URL "
-        "in the default_channels list; or if not present there, from channel_alias.",
+        "in the default_channels list; or if not present there, from channel_alias. "
+        "Supply an empty string to clear the token.",
+    )
+    g.add_argument(
+        "--clean",
+        action="store_true",
+        help="Disable conda_ident operation and remove all configuration data. "
+        "If you re-enable conda_ident, you will need to rebuild the configuration.",
+    )
+    p.add_argument(
+        "--quiet",
+        dest="verbose",
+        action="store_false",
+        default=True,
+        help="Silent mode; disables all non-error output.",
     )
     g.add_argument("--verify", action="store_true", help=argparse.SUPPRESS)
     p.add_argument(
@@ -60,7 +77,7 @@ def parse_argv():
     ) != 5:
         what = "clean" if args.clean else "verify"
         print("WARNING: --%s overrides other operations" % what)
-    return args
+    return args, p
 
 
 success = True
@@ -174,9 +191,9 @@ def _yaml():
 
 
 def read_condarc(args, fname):
-    if not exists(fname) or args.clean:
-        if args.verbose and not args.clean:
-            print("no conda_ident condarc to read")
+    if not exists(fname):
+        if args.verbose:
+            print("no conda_ident condarc")
         return {}
     try:
         if args.verbose:
@@ -294,13 +311,16 @@ def write_condarc(args, fname, condarc):
 
 def main():
     global success
-    args = parse_argv()
+    args, p = parse_argv()
     if args.verbose:
         pkg_name = basename(dirname(__file__))
         msg = pkg_name + " installer"
         print(msg)
         msg = "-" * len(msg)
         print(msg)
+        if len(sys.argv) == 1:
+            p.print_help()
+            print(msg)
     manage_patch(args)
     if not args.verify:
         fname = join(sys.prefix, "etc", "conda_ident.yml")

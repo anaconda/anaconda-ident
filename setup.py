@@ -13,6 +13,7 @@ setup(
     packages=["conda_ident"],
     install_requires=["conda"],
     keywords="conda-ident",
+    entry_points={"console_scripts": ["conda-ident = conda_ident.install:main"]},
     classifiers=[
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.7",
