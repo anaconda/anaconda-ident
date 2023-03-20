@@ -29,9 +29,7 @@ requirements:
     - ruamel.yaml  # [config_string or default_channels or channel_alias or repo_token]
   run:
     - python
-    {% for dep in data['install_requires'] %}
-    - {{ dep.lower() }}
-    {% endfor %}
+    - conda
 
 about:
   home: https://github.com/mcg1969/conda-ident

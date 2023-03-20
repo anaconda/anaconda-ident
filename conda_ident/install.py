@@ -47,7 +47,7 @@ def parse_argv():
         "channel alias setting.",
     )
     p.add_argument(
-        "--token",
+        "--repo-token",
         default=None,
         help="Store a token for conda authentication. To use this, a full channel "
         "URL is required. This will either be determined from the first full URL "
@@ -230,7 +230,7 @@ def _print_channel_alias(what, args, config):
 
 def _print_tokens(what, args, config):
     if args.verbose:
-        tokens = config.get("binstar_tokens")
+        tokens = config.get("repo_tokens")
         if tokens:
             print("%s repo tokens:" % what)
             for k, v in tokens.items():
@@ -272,19 +272,19 @@ def manage_condarc(args, condarc):
         _print_channel_alias("new", args, condarc)
     # tokens
     _print_tokens("current", args, condarc)
-    if args.token is not None:
+    if args.repo_token is not None:
         tokens = {}
-        if args.token.strip():
+        if args.repo_token.strip():
             defchan = condarc.get("default_channels", []) + [
                 condarc.get("channel_alias", "")
             ]
             defchan = [c for c in defchan if "/" in c]
             if defchan:
                 defchan = "/".join(defchan[0].strip().split("/", 3)[:3]) + "/"
-                tokens[defchan] = args.token.strip()
-        _set_or_delete(condarc, "binstar_tokens", tokens)
+                tokens[defchan] = args.repo_token.strip()
+        _set_or_delete(condarc, "repo_tokens", tokens)
         _print_tokens("new", args, condarc)
-    _set_or_delete(condarc, "add_anaconda_token", bool(condarc.get("binstar_tokens")))
+    _set_or_delete(condarc, "add_anaconda_token", bool(condarc.get("repo_tokens")))
     return condarc
 
 
@@ -331,6 +331,8 @@ def main():
             newcondarc = manage_condarc(args, condarc)
             if condarc != newcondarc:
                 write_condarc(args, fname, newcondarc)
+            elif args.verbose:
+                print('no changes to save')
     if args.verbose:
         print(msg)
     return 0 if success else -1
