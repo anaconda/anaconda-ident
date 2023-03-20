@@ -12,6 +12,7 @@ from conda.base.context import (
     env_name,
     ParameterLoader,
     PrimitiveParameter,
+    MapParameter,
 )
 from conda.gateways.connection import session as c_session
 from conda.gateways.connection.session import CondaHttpAuth
@@ -205,7 +206,7 @@ def _new_check_prefix(prefix, json=False):
 
 def _new_read_binstar_tokens():
     tokens = a_client._old_read_binstar_tokens()
-    n_tokens, _ = get_config_value("binstar_tokens")
+    n_tokens, _ = get_config_value("repo_tokens")
     if n_tokens is not None:
         tokens.update(n_tokens)
     return tokens
@@ -263,6 +264,13 @@ if not hasattr(Context, "client_token"):
     Context.client_token = _param
     Context.parameter_names += (_param._set_name("client_token"),)
 
+# conda.base.context.Context
+# Adds repo_tokens as a managed map config parameter
+if not hasattr(Context, "repo_tokens"):
+    _param = ParameterLoader(MapParameter(PrimitiveParameter("", str)))
+    Context.repo_tokens = _param
+    Context.parameter_names += (_param._set_name("repo_tokens"),)
+
 if DEBUG:
     print(
         "| SEARCH_PATH:",
@@ -295,6 +303,10 @@ if DEBUG:
     )
     print(
         "| CLIENT_TOKEN:",
-        "patched" if getattr(context, "client_token", None) else "UNPATCHED",
+        "patched" if hasattr(context, "client_token") else "UNPATCHED",
+    )
+    print(
+        "| REPO_TOKENS:",
+        "patched" if hasattr(context, "repo_tokens") else "UNPATCHED",
     )
     print("CONDA_IDENT patching completed")

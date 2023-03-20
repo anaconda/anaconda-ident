@@ -72,7 +72,7 @@ elif calias_env:
 
 # In a "baked" configuration, the client token config is
 # hardcoded into the package itself
-token_baked, _ = patch.get_config_value("binstar_tokens")
+token_baked, _ = patch.get_config_value("repo_tokens")
 token_baked = dict(token_baked or {})
 token_env = os.environ.get("REPO_TOKEN") or ""
 if token_env:
