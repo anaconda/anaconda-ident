@@ -1,0 +1,34 @@
+{% set data = load_setup_py_data() %}
+
+package:
+  name: anaconda-pro
+  version: {{ data['keywords'][1] }}
+
+source:
+  path: ..
+
+build:
+  noarch: generic
+  always_include_files:
+    - etc/conda_ident.yml
+  script_env:
+    - CONFIG_STRING={{ config_string }}  # [config_string != "blank"]
+    - CONFIG_STRING=  # [config_string == "blank"]
+    - DEFAULT_CHANNELS={{ default_channels }}  # [default_channels != "blank"]
+    - DEFAULT_CHANNELS=  # [default_channels == "blank"]
+    - CHANNEL_ALIAS={{ channel_alias }}  # [channel_alias != "blank"]
+    - CHANNEL_ALIAS=  # [channel_alias == "blank"]
+    - REPO_TOKEN={{ repo_token }}  # [repo_token != "blank"]
+    - REPO_TOKEN=  # [repo_token == "blank"]
+  string: {{ custom_build | default("custom") }}_0  # [custom_build != "" and custom_build != "blank"]
+
+requirements:
+  host:
+    - python
+    - conda-ident
+  run: []
+
+about:
+  home: https://github.com/mcg1969/conda-ident
+  summary: Anaconda Professional License Key
+  license: NONE

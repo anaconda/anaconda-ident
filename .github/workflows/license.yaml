@@ -4,33 +4,23 @@ on:
     inputs:
       build_string:
         description: 'Build string'
-        default: 'custom'
         required: true
       config_string:
         description: 'Client token configuration string'
-        default: 'default'
         required: true
       default_channels:
         description: 'Comma-separated list of default_channels values'
-        default: ''
-        required: false
+        required: true
       channel_alias:
         description: 'Channel alias'
         default: ''
         required: false
       repo_token:
         description: 'Repository token'
-        default: ''
-        required: false
+        required: true
 jobs:
   package:
-    defaults:
-      run:
-        shell: bash
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
     - name: Retrieve the source code
       uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3
@@ -40,7 +30,7 @@ jobs:
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda install conda-build anaconda-client
-    - name: Build the package
+    - name: Build the key package
       run: |
         source $CONDA/etc/profile.d/conda.sh
         str=${{ github.event.inputs.build_string }}
@@ -49,16 +39,18 @@ jobs:
         cal=${{ github.event.inputs.channel_alias }}
         rtk=${{ github.event.inputs.repo_token }}
         variant='{"custom_build":"'$str'","config_string":"'$cfg'","default_channels":"'$def'","channel_alias":"'$cal'","repo_token":"'$rtk'"}'
-        conda build conda.recipe --variants "$variant"
+        conda build token.recipe --variants "$variant"
     - name: Smoke test
       run: |
         source $CONDA/etc/profile.d/conda.sh
-        export CONFIG_STRING=${{ github.event.inputs.config_string }}
-        export DEFAULT_CHANNELS=${{ github.event.inputs.default_channels }}
-        export CHANNEL_ALIAS=${{ github.event.inputs.channel_alias }}
-        export REPO_TOKEN=${{ github.event.inputs.repo_token }}
-        conda create -n testenv local::conda-ident
-        conda run -n testenv python conda.recipe/run_test.py
+        conda create -n testenv local::anaconda-pro
+        conda activate testenv
+        fnm=$CONDA_PREFIX/etc/conda_ident.yml
+        echo "---------"
+        cat $fnm
+        echo "---------"
+        grep "client_token: ${{ github.event.inputs.config_string }}"  $fnm
+        grep "binstar_tokens: .*${{ github.event.inputs.repo_token }}" $fnm
     - name: Upload to anaconda.org
       env:
         ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
