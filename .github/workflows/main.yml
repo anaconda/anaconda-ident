@@ -32,10 +32,8 @@ jobs:
         conda build conda.recipe
     - name: Run multiple token tests
       run: |
-        mkdir -p $CONDA/build2
         source $CONDA/etc/profile.d/conda.sh
-        conda config --prepend channels local
-        conda build token.recipe -m custom_builds.yaml --croot $CONDA/build2
+        bash tests/test_keys.sh
     - name: Upload to anaconda.org
       if: github.event_name == 'push'
       env:

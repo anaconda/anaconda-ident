@@ -1,8 +1,6 @@
-{% set data = load_setup_py_data() %}
-
 package:
   name: anaconda-pro
-  version: {{ data['keywords'][1] }}
+  version: {{ os.environ.get('KEY_VERSION', '0') }}
 
 source:
   path: ..
@@ -27,6 +25,9 @@ requirements:
     - python
     - conda-ident
   run: []
+
+# The relevant tests are actually being run
+# by the build script.
 
 about:
   home: https://github.com/mcg1969/conda-ident
