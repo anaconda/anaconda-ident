@@ -209,6 +209,10 @@ for flag in flags:
             failed = len(header) > 0
         print("XX" if failed else "OK", header)
         nfailed += failed
+        subprocess.run(
+            ["python", "-m", "conda_ident.install", "--config", ""],
+            capture_output=True,
+        )
 
 
 print("FAILURES:", nfailed)

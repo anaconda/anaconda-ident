@@ -26,19 +26,16 @@ jobs:
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda install conda-build anaconda-client
-    - name: Build the package (standard)
-      if: github.event_name != 'workflow_dispatch'
+    - name: Build the package
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda build conda.recipe
-    - name: Smoke test the baked build
-      if: github.event_name != 'workflow_dispatch'
+    - name: Run multiple token tests
       run: |
-        mkdir -p $CONDA/build2
         source $CONDA/etc/profile.d/conda.sh
-        conda build conda.recipe -m custom_builds.yaml --croot $CONDA/build2
+        CONDA_PREFIX=$CONDA bash tests/test_keys.sh
     - name: Upload to anaconda.org
-      if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+      if: github.event_name == 'push'
       env:
         ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         GITHUB_REF: ${{ github.ref }}
