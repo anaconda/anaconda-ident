@@ -39,7 +39,7 @@ jobs:
         cal=${{ github.event.inputs.channel_alias }}
         rtk=${{ github.event.inputs.repo_token }}
         variant='{"custom_build":"'$str'","config_string":"'$cfg'","default_channels":"'$def'","channel_alias":"'$cal'","repo_token":"'$rtk'"}'
-        conda build token.recipe --variants "$variant"
+        conda build key.recipe --variants "$variant"
     - name: Smoke test
       run: |
         source $CONDA/etc/profile.d/conda.sh
