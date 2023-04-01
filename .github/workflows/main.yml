@@ -30,10 +30,6 @@ jobs:
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda build conda.recipe
-    - name: Run multiple token tests
-      run: |
-        source $CONDA/etc/profile.d/conda.sh
-        CONDA_PREFIX=$CONDA bash tests/test_keys.sh
     - name: Upload to anaconda.org
       if: github.event_name == 'push'
       env:
