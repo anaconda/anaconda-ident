@@ -1,0 +1,3 @@
+userhost|main|https://urla.example.com/repo|token_a|test_a
+uso:testorg1|https://urlb.example.com/repo/main,https://urlb.example.com/repo/r||token_b|test_b
+default|main,https://repo.anaconda.com/pkgs/msys2|https://urlc.example.com|token_c|test_c

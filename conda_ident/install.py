@@ -17,12 +17,29 @@ def parse_argv():
         "Without further configuration, this enables randomized telemetry.",
     )
     g.add_argument(
+        "--verify",
+        action="store_true",
+        help="Enable conda_ident operation if necessary and exit immediately, "
+        "without reading or modifying the current configuration.",
+    )
+    g.add_argument(
         "--disable",
         action="store_true",
         help="Disable conda_ident operation. "
         "The configuration file is left in place, so that full operation can "
         "resume with a call to --enable. To remove the settings as well, use the "
         "--clean option instead.",
+    )
+    g.add_argument(
+        "--status",
+        action="store_true",
+        help="Print the conda_ident patch and configuration status, and make no changes.",
+    )
+    g.add_argument(
+        "--clean",
+        action="store_true",
+        help="Disable conda_ident operation and remove all configuration data. "
+        "If you re-enable conda_ident, you will need to rebuild the configuration.",
     )
     p.add_argument(
         "--config",
@@ -54,12 +71,6 @@ def parse_argv():
         "in the default_channels list; or if not present there, from channel_alias. "
         "Supply an empty string to clear the token.",
     )
-    g.add_argument(
-        "--clean",
-        action="store_true",
-        help="Disable conda_ident operation and remove all configuration data. "
-        "If you re-enable conda_ident, you will need to rebuild the configuration.",
-    )
     p.add_argument(
         "--quiet",
         dest="verbose",
@@ -67,15 +78,14 @@ def parse_argv():
         default=True,
         help="Silent mode; disables all non-error output.",
     )
-    g.add_argument("--verify", action="store_true", help=argparse.SUPPRESS)
     p.add_argument(
         "--ignore-missing", action="store_true", default=None, help=argparse.SUPPRESS
     )
     args = p.parse_args()
-    if (args.clean or args.verify) and sum(
+    if (args.clean or args.verify or args.status) and sum(
         v is not None for v in vars(args).values()
-    ) != 5:
-        what = "clean" if args.clean else "verify"
+    ) != 6:
+        what = "clean" if args.clean else ("status" if args.status else "verify")
         print("WARNING: --%s overrides other operations" % what)
     return args, p
 
@@ -105,6 +115,7 @@ except Exception as exc:
 
 def manage_patch(args):
     global PATCH_TEXT
+    verbose = args.verbose or args.status
 
     sp_dir = sysconfig.get_paths()["purelib"]
     pfile = join(sp_dir, "conda", "base", "context.py")
@@ -122,7 +133,7 @@ def manage_patch(args):
         return text, b"conda_ident" in text[-nline:]
 
     text, is_present = _read(pfile)
-    if args.verbose:
+    if verbose:
         print("patch target:", pfile)
         print("current status:", "ENABLED" if is_present else "DISABLED")
 
@@ -131,15 +142,15 @@ def manage_patch(args):
 
     need_change = enable and not is_present or disable and is_present
     if not need_change:
-        if args.verbose and (enable or disable):
+        if verbose and (enable or disable):
             print("no patchwork needed")
         return
     elif text is None:
-        if args.verbose:
+        if verbose and not args.status:
             print("nothing to patch")
         return
 
-    if args.verbose:
+    if verbose:
         print(("reverting" if is_present else "applying"), "patch...")
     try:
         wineol = b"\r\n" in text
@@ -165,7 +176,7 @@ def manage_patch(args):
         error("%s failed" % ("deactivation" if is_present else "activation"))
 
     text, is_present = _read(pfile)
-    if args.verbose:
+    if verbose:
         print("new status:", "ENABLED" if is_present else "DISABLED")
 
 
@@ -190,28 +201,14 @@ def _yaml():
     return __yaml
 
 
-def read_condarc(args, fname):
-    if not exists(fname):
-        if args.verbose:
-            print("no conda_ident condarc")
-        return {}
-    try:
-        if args.verbose:
-            print("reading conda_ident condarc...")
-        with open(fname, "r") as fp:
-            return _yaml().safe_load(fp)
-    except Exception:
-        error("config load failed")
-
-
 def _print_config(what, args, config):
-    if args.verbose:
+    if args.verbose or args.status:
         value = config.get("client_token")
         print("%s config: %s" % (what, value or "<default>"))
 
 
 def _print_default_channels(what, args, config):
-    if args.verbose:
+    if args.verbose or args.status:
         value = config.get("default_channels")
         if value is None:
             value = "<none>"
@@ -223,13 +220,13 @@ def _print_default_channels(what, args, config):
 
 
 def _print_channel_alias(what, args, config):
-    if args.verbose:
+    if args.verbose or args.status:
         value = config.get("channel_alias")
         print("%s channel_alias: %s" % (what, value or "<none>"))
 
 
 def _print_tokens(what, args, config):
-    if args.verbose:
+    if args.verbose or args.status:
         tokens = config.get("repo_tokens")
         if tokens:
             print("%s repo tokens:" % what)
@@ -246,17 +243,36 @@ def _set_or_delete(d, k, v):
         del d[k]
 
 
+def read_condarc(args, fname):
+    verbose = args.verbose or args.status
+    fexists = exists(fname)
+    if verbose:
+        print("config file: %s%s" % (fname, "" if fexists else " (not present)"))
+    if not fexists:
+        return {}
+    try:
+        with open(fname, "r") as fp:
+            condarc = _yaml().safe_load(fp)
+    except Exception:
+        error("config load failed")
+    if verbose:
+        _print_config("current", args, condarc)
+        _print_default_channels("current", args, condarc)
+        _print_channel_alias("current", args, condarc)
+        _print_tokens("current", args, condarc)
+    return condarc
+
+
 def manage_condarc(args, condarc):
     if args.clean:
         return {}
     condarc = condarc.copy()
     # config string
-    _print_config("current", args, condarc)
     if args.config is not None:
-        _set_or_delete(condarc, "client_token", args.config)
+        new_token = "" if args.config == "default" else args.config
+        _set_or_delete(condarc, "client_token", new_token)
         _print_config("new", args, condarc)
     # default_channels
-    _print_default_channels("current", args, condarc)
     if args.default_channel:
         nchan = []
         for c1 in args.default_channel:
@@ -266,12 +282,10 @@ def manage_condarc(args, condarc):
         _set_or_delete(condarc, "default_channels", nchan)
         _print_default_channels("new", args, condarc)
     # channel alias
-    _print_channel_alias("current", args, condarc)
     if args.channel_alias is not None:
         _set_or_delete(condarc, "channel_alias", args.channel_alias)
         _print_channel_alias("new", args, condarc)
     # tokens
-    _print_tokens("current", args, condarc)
     if args.repo_token is not None:
         tokens = {}
         if args.repo_token.strip():
@@ -312,28 +326,38 @@ def write_condarc(args, fname, condarc):
 def main():
     global success
     args, p = parse_argv()
-    if args.verbose:
+    verbose = args.verbose or args.status or len(sys.argv) <= 1
+    if verbose:
         pkg_name = basename(dirname(__file__))
         msg = pkg_name + " installer"
         print(msg)
         msg = "-" * len(msg)
         print(msg)
-        if len(sys.argv) == 1:
+        if len(sys.argv) <= 1:
+            sys.argv[0] = "conda-ident"
             p.print_help()
             print(msg)
     manage_patch(args)
-    if not args.verify:
-        fname = join(sys.prefix, "etc", "conda_ident.yml")
-        if args.verbose:
-            print("config file:", fname)
-        condarc = read_condarc(args, fname)
-        if condarc is not None:
-            newcondarc = manage_condarc(args, condarc)
-            if condarc != newcondarc:
-                write_condarc(args, fname, newcondarc)
-            elif args.verbose:
-                print('no changes to save')
-    if args.verbose:
+    if args.verify:
+        if verbose:
+            print(msg)
+        return 0
+    fname = join(sys.prefix, "etc", "conda_ident.yml")
+    condarc = read_condarc(args, fname)
+    if not success:
+        if verbose:
+            print(msg)
+        return -1
+    if args.status or len(sys.argv) <= 1 + ("--quiet" in sys.argv):
+        return 0
+    newcondarc = manage_condarc(args, condarc)
+    if condarc == newcondarc:
+        if verbose:
+            print("no changes to save")
+            print(msg)
+        return 0 if success else -1
+    write_condarc(args, fname, newcondarc)
+    if verbose:
         print(msg)
     return 0 if success else -1
 
