@@ -16,9 +16,12 @@ print("CONFIG_STRING:", os.environ.get("CONFIG_STRING") or "")
 print("DEFAULT_CHANNELS:", os.environ.get("DEFAULT_CHANNELS") or "")
 print("CHANNEL_ALIAS:", os.environ.get("CHANNEL_ALIAS") or "")
 print("REPO_TOKEN:", os.environ.get("REPO_TOKEN") or "")
+print("SKIP_INSTALL:", os.environ.get("SKIP_INSTALL") or False)
 print("CONDA_IDENT_DEBUG:", os.environ.get("CONDA_IDENT_DEBUG") or "")
 print("-----")
-p = subprocess.run(["python", "-m", "conda_ident.install"], capture_output=True)
+p = subprocess.run(
+    ["python", "-m", "conda_ident.install", "--status"], capture_output=True
+)
 print(p.stdout.decode("utf-8").strip())
 print("-----")
 p = subprocess.run(["python", "-m", "conda", "info"], capture_output=True)
@@ -134,6 +137,7 @@ if config_env:
     test_patterns = [(config_baked, fmt)]
     flags = ("--enable", "--disable", "--enable")
     print("test_patterns:", test_patterns)
+skip_install = bool(os.environ.get("SKIP_INSTALL"))
 
 nfailed = 0
 saved_values = {}
@@ -162,10 +166,11 @@ for flag in flags:
             "{:{w1}} {:{w2}} ".format(param, test_fields, w1=max_param, w2=max_field),
             end="",
         )
-        subprocess.run(
-            ["python", "-m", "conda_ident.install", "--config", param],
-            capture_output=True,
-        )
+        if not skip_install:
+            subprocess.run(
+                ["python", "-m", "conda_ident.install", "--config", param],
+                capture_output=True,
+            )
         # Make sure to leave override-channels and the full channel URL in here.
         # This allows this command to run fully no matter what we do to channel_alias
         # and default_channels
@@ -209,10 +214,11 @@ for flag in flags:
             failed = len(header) > 0
         print("XX" if failed else "OK", header)
         nfailed += failed
-        subprocess.run(
-            ["python", "-m", "conda_ident.install", "--config", ""],
-            capture_output=True,
-        )
+        if not skip_install:
+            subprocess.run(
+                ["python", "-m", "conda_ident.install", "--config", ""],
+                capture_output=True,
+            )
 
 
 print("FAILURES:", nfailed)

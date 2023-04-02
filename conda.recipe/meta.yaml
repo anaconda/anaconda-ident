@@ -25,6 +25,7 @@ test:
     - tests
   commands:
     - python tests/test_config.py
+    - bash tests/test_keymgr.sh  # [unix]
 
 about:
   home: https://github.com/mcg1969/conda-ident

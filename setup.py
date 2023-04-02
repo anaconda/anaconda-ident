@@ -1,5 +1,4 @@
 from setuptools import setup
-from datetime import datetime
 import versioneer
 
 setup(
@@ -13,8 +12,13 @@ setup(
     url="https://github.com/mcg1969/conda-ident",
     packages=["conda_ident"],
     install_requires=["conda"],
-    keywords=["conda-ident", datetime.strftime(datetime.now(),"%Y%m%d")],
-    entry_points={"console_scripts": ["conda-ident = conda_ident.install:main"]},
+    keywords=["conda-ident"],
+    entry_points={
+        "console_scripts": [
+            "conda-ident = conda_ident.install:main",
+            "conda-keymgr = conda_ident.keymgr:main",
+        ]
+    },
     classifiers=[
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.7",
