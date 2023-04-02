@@ -24,12 +24,15 @@ jobs:
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda build conda.recipe --no-test
-    - name: Upload package
+        mv $CONDA/conda-bld .
+    - name: Upload build artifacts
       uses: actions/upload-artifact@v3
       with:
-        path:
-          - $CONDA/conda-bld
+        if-no-files-found: error
+        name: conda-bld
+        path: conda-bld/
   test:
+    needs: build
     defaults:
       run:
         shell: bash
@@ -42,45 +45,41 @@ jobs:
       uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3
       with:
         fetch-depth: 0        
-    - name: Install the build environment
-      run: |
-        source $CONDA/etc/profile.d/conda.sh
-        conda install conda-build
-    - name: Download package
+    - name: Download build artfiacts
       uses: actions/download-artifact@v3
       with:
-        path:
-          - $CONDA/conda-bld
-    - name: Test the package
+        name: conda-bld
+        path: ./conda-bld
+    - name: Build test environment
       run: |
         source $CONDA/etc/profile.d/conda.sh
-        conda build --test $CONDA/conda-bld/noarch/*.tar.bz2
+        mv conda-bld $CONDA/
+        conda create -p ./testenv local::conda-ident
+    - name: Test the package
+      run: |
+        set -x
+        source ./testenv/etc/profile.d/conda.sh
+        conda activate
+        cd tests
+        python -m conda_ident.install --status
+        python test_config.py
+        bash test_keymgr.sh
   upload:
-    defaults:
-      run:
-        shell: bash
+    needs: test
     runs-on: ubuntu-latest
     steps:
-    - name: Install the upload environment
-      run: |
-        source $CONDA/etc/profile.d/conda.sh
-        conda install anaconda-client
     - name: Download package
       uses: actions/download-artifact@v3
       with:
-        path:
-          - $CONDA/conda-bld
-    - name: Test the package
-      run: |
-        source $CONDA/etc/profile.d/conda.sh
-        conda build --test $CONDA/conda-bld/noarch/*.tar.bz2
+        name: conda-bld
+        path: ./conda-bld
     - name: Upload to anaconda.org
       if: github.event_name == 'push'
       env:
         ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         GITHUB_REF: ${{ github.ref }}
       run: |
-        source $CONDA/etc/profile.d/conda.sh
-        conda activate base
+        source $CONDA/bin/activate
+        conda install anaconda-client
         [[ "$GITHUB_REF" =~ ^refs/tags/ ]] || export LABEL="--label dev"
-        anaconda --verbose --token $ANACONDA_TOKEN upload --user mcg $LABEL $CONDA/conda-bld/*/*.tar.bz2 --force
+        anaconda --verbose --token $ANACONDA_TOKEN upload --user mcg $LABEL conda-bld/*/*.tar.bz2 --force

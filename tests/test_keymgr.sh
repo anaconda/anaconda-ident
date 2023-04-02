@@ -17,7 +17,8 @@ grep '|' $SCRIPTDIR/config_tests.txt | while IFS="|" read cstr def cha rtk bstr;
     echo "build string: $bstr"
     echo "build number: $bnum"
     echo "--------"
-    output=$(conda-keymgr --name "testpkg" --version "$ver" --build-string "$bstr" --build-number "$bnum" \
+    output=$(python -m conda_ident.keymgr \
+             --name "testpkg" --version "$ver" --build-string "$bstr" --build-number "$bnum" \
              --config-string "$cstr" --default-channel "$def" --channel-alias "$cha" --repo-token "$rtk")
     echo "$output"
     echo "--------"
