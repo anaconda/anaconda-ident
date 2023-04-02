@@ -9,13 +9,33 @@ on:
     branches:
       - main
 jobs:
-  package:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Retrieve the source code
+      uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3
+      with:
+        fetch-depth: 0        
+    - name: Install the build environment
+      run: |
+        source $CONDA/etc/profile.d/conda.sh
+        conda install conda-build
+    - name: Build the package
+      run: |
+        source $CONDA/etc/profile.d/conda.sh
+        conda build conda.recipe --no-test
+    - name: Upload package
+      uses: actions/upload-artifact@v3
+      with:
+        path:
+          - $CONDA/conda-bld
+  test:
     defaults:
       run:
         shell: bash
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
     - name: Retrieve the source code
@@ -25,11 +45,35 @@ jobs:
     - name: Install the build environment
       run: |
         source $CONDA/etc/profile.d/conda.sh
-        conda install conda-build anaconda-client
-    - name: Build the package
+        conda install conda-build
+    - name: Download package
+      uses: actions/download-artifact@v3
+      with:
+        path:
+          - $CONDA/conda-bld
+    - name: Test the package
       run: |
         source $CONDA/etc/profile.d/conda.sh
-        conda build conda.recipe
+        conda build --test $CONDA/conda-bld/noarch/*.tar.bz2
+  upload:
+    defaults:
+      run:
+        shell: bash
+    runs-on: ubuntu-latest
+    steps:
+    - name: Install the upload environment
+      run: |
+        source $CONDA/etc/profile.d/conda.sh
+        conda install anaconda-client
+    - name: Download package
+      uses: actions/download-artifact@v3
+      with:
+        path:
+          - $CONDA/conda-bld
+    - name: Test the package
+      run: |
+        source $CONDA/etc/profile.d/conda.sh
+        conda build --test $CONDA/conda-bld/noarch/*.tar.bz2
     - name: Upload to anaconda.org
       if: github.event_name == 'push'
       env:
