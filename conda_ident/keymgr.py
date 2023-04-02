@@ -97,7 +97,7 @@ INDEX_JSON = {
     "arch": None,
     "build": "custom_0",
     "build_number": 0,
-    "depends": [],
+    "depends": ["conda-ident"],
     "license": "NONE",
     "name": "conda-ident-config",
     "noarch": "generic",
