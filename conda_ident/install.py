@@ -1,6 +1,7 @@
 import sysconfig
 import traceback
 import argparse
+import json
 import sys
 import os
 
@@ -105,6 +106,14 @@ def error(what, fatal=False):
     success = False
 
 
+def tryop(op, *args, **kwargs):
+    try:
+        op(*args, **kwargs)
+        return True
+    except Exception:
+        return False
+
+
 PATCH_TEXT = """
 try:
     import conda_ident.patch
@@ -152,6 +161,7 @@ def manage_patch(args):
 
     if verbose:
         print(("reverting" if is_present else "applying"), "patch...")
+    renamed = False
     try:
         wineol = b"\r\n" in text
         if wineol != (b"\r\n" in pline):
@@ -170,35 +180,17 @@ def manage_patch(args):
         if exists(pfile_orig):
             os.unlink(pfile_orig)
         os.rename(pfile, pfile_orig)
+        renamed = True
         os.rename(pfile + ".new", pfile)
         is_present = not is_present
     except Exception:
         error("%s failed" % ("deactivation" if is_present else "activation"))
+        if renamed:
+            os.rename(pfile_orig, pfile)
 
     text, is_present = _read(pfile)
     if verbose:
         print("new status:", "ENABLED" if is_present else "DISABLED")
-
-
-__yaml = None
-
-
-def _yaml():
-    global __yaml
-    if __yaml is None:
-        try:
-            import ruamel.yaml as yaml
-        except Exception:
-            try:
-                import ruamel_yaml as yaml
-            except Exception:
-                try:
-                    import yaml
-                except Exception:
-                    error("failed to load yaml library")
-                    return None
-        __yaml = yaml
-    return __yaml
 
 
 def _print_config(what, args, config):
@@ -252,7 +244,7 @@ def read_condarc(args, fname):
         return {}
     try:
         with open(fname, "r") as fp:
-            condarc = _yaml().safe_load(fp)
+            condarc = json.load(fp)
     except Exception:
         error("config load failed")
     if verbose:
@@ -307,20 +299,25 @@ def write_condarc(args, fname, condarc):
         if exists(fname):
             if args.verbose:
                 print("removing conda_ident condarc...")
-            try:
-                os.unlink(fname)
-            except Exception:
+            if not tryop(os.unlink, fname):
                 error("condarc removal failed")
         return
     if args.verbose:
         what = "updating" if exists(fname) else "creating"
         print("%s conda_ident condarc..." % what)
+    renamed = False
     try:
         os.makedirs(dirname(fname), exist_ok=True)
+        if exists(fname):
+            renamed = tryop(os.rename, fname, fname + ".orig")
         with open(fname, "w") as fp:
-            _yaml().dump(condarc, fp)
+            json.dump(condarc, fp, ensure_ascii=True, separators=(",", ":"))
+        if renamed:
+            tryop(os.unlink, fname + ".orig")
     except Exception:
         error("condarc update failed")
+        if renamed:
+            tryop(os.rename, fname + ".orig", fname)
 
 
 def main():
@@ -344,10 +341,10 @@ def main():
         return 0
     fname = join(sys.prefix, "etc", "conda_ident.yml")
     condarc = read_condarc(args, fname)
-    if not success:
+    if not success or args.status:
         if verbose:
             print(msg)
-        return -1
+        return 0 if success else -1
     if args.status or len(sys.argv) <= 1 + ("--quiet" in sys.argv):
         return 0
     newcondarc = manage_condarc(args, condarc)

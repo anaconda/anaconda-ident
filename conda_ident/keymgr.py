@@ -221,10 +221,12 @@ def build_config_dict(args):
         if token and defchan:
             defchan = "/".join(defchan[0].strip().split("/", 3)[:3]) + "/"
             result["repo_tokens"] = {defchan: token}
-    if verbose and "repo_tokens" in result:
-        print("repo_tokens:")
-        for k, v in result["repo_tokens"].items():
-            print("  %s: %s" % (k, v))
+    if "repo_tokens" in result:
+        result["add_anaconda_token"] = True
+        if verbose:
+            print("repo_tokens:")
+            for k, v in result["repo_tokens"].items():
+                print("  %s: %s" % (k, v))
     return result
 
 
