@@ -1,7 +1,6 @@
 import sysconfig
 import traceback
 import argparse
-import json
 import sys
 import os
 
@@ -193,6 +192,27 @@ def manage_patch(args):
         print("new status:", "ENABLED" if is_present else "DISABLED")
 
 
+__yaml = None
+
+
+def _yaml():
+    global __yaml
+    if __yaml is None:
+        try:
+            import ruamel.yaml as yaml
+        except Exception:
+            try:
+                import ruamel_yaml as yaml
+            except Exception:
+                try:
+                    import yaml
+                except Exception:
+                    error("failed to load yaml library")
+                    return None
+        __yaml = yaml
+    return __yaml
+
+
 def _print_config(what, args, config):
     if args.verbose or args.status:
         value = config.get("client_token")
@@ -244,7 +264,7 @@ def read_condarc(args, fname):
         return {}
     try:
         with open(fname, "r") as fp:
-            condarc = json.load(fp)
+            condarc = _yaml().safe_load(fp)
     except Exception:
         error("config load failed")
     if verbose:
@@ -311,7 +331,7 @@ def write_condarc(args, fname, condarc):
         if exists(fname):
             renamed = tryop(os.rename, fname, fname + ".orig")
         with open(fname, "w") as fp:
-            json.dump(condarc, fp, ensure_ascii=True, separators=(",", ":"))
+            _yaml().dump(condarc, fp)
         if renamed:
             tryop(os.unlink, fname + ".orig")
     except Exception:
