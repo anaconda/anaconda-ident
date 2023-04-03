@@ -26,7 +26,7 @@ jobs:
         conda build conda.recipe --no-test
         mv $CONDA/conda-bld .
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce # v3
       with:
         if-no-files-found: error
         name: conda-bld
@@ -46,7 +46,7 @@ jobs:
       with:
         fetch-depth: 0        
     - name: Download build artfiacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a # v3
       with:
         name: conda-bld
         path: ./conda-bld
@@ -69,7 +69,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Download package
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a # v3
       with:
         name: conda-bld
         path: ./conda-bld
