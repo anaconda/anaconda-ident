@@ -91,15 +91,15 @@ def parse_argv():
     return args, p
 
 
-ABOUT_JSON = {"summary": "Conda Ident Configuration Package"}
-FNAME = "etc/conda_ident.yml"
+ABOUT_JSON = {"summary": "Anaconda-Ident Configuration Package"}
+FNAME = "etc/anaconda_ident.yml"
 INDEX_JSON = {
     "arch": None,
     "build": "custom_0",
     "build_number": 0,
-    "depends": ["conda-ident"],
+    "depends": ["anaconda-ident"],
     "license": "NONE",
-    "name": "conda-ident-config",
+    "name": "anaconda-ident-config",
     "noarch": "generic",
     "platform": None,
     "subdir": "noarch",
@@ -190,9 +190,9 @@ def build_config_dict(args):
         print("Building config dictionary")
         print(LINE)
     result = {}
-    result["client_token"] = args.config_string or "default"
+    result["anaconda_ident"] = args.config_string or "default"
     if verbose:
-        print("client_token:", result["client_token"])
+        print("anaconda_ident:", result["anaconda_ident"])
     if args.default_channel:
         nchan = []
         for c1 in args.default_channel:

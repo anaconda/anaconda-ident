@@ -27,8 +27,8 @@ from os.path import join, basename, expanduser, exists
 log = getLogger(__name__)
 
 
-BAKED_CONDARC = join(sys.prefix, "etc", "conda_ident.yml")
-DEBUG = bool(os.environ.get("CONDA_IDENT_DEBUG"))
+BAKED_CONDARC = join(sys.prefix, "etc", "anaconda_ident.yml")
+DEBUG = bool(os.environ.get("ANACONDA_IDENT_DEBUG"))
 
 
 _client_token_formats = {
@@ -53,7 +53,7 @@ def get_random_token(nchar, bytes=None):
 def initialize_raw_tokens():
     Context.session_token = get_random_token(8)
     Context.client_token_raw = None
-    cid_file = join(expanduser("~/.conda"), "client_token")
+    cid_file = join(expanduser("~/.conda"), "anaconda_ident")
     client_token = ""
     if exists(cid_file):
         try:
@@ -128,7 +128,7 @@ def get_config_value(key):
 
 
 def client_token_type():
-    token_type, loc = get_config_value("client_token")
+    token_type, loc = get_config_value("anaconda_ident")
     if loc is None:
         log.debug("Selecting default token config")
         token_type = "default"
@@ -195,7 +195,7 @@ def _new_apply_basic_auth(request):
     result = CondaHttpAuth._old_apply_basic_auth(request)
     token = client_token_string()
     if token:
-        request.headers["X-Conda-Ident"] = token
+        request.headers["X-Anaconda-Ident"] = token
     return result
 
 
@@ -216,7 +216,7 @@ if DEBUG:
     print("CONDA_IDENT DEBUGGING ENABLED")
 
 # conda.base.context.SEARCH_PATH
-# Add conda_ident's condarc location
+# Add anaconda_ident's condarc location
 if not hasattr(c_context, "_OLD_SEARCH_PATH"):
     sp = c_context._OLD_SEARCH_PATH = c_context.SEARCH_PATH
     n_sys = min(k for k, v in enumerate(sp) if v.startswith("$CONDA_ROOT"))
@@ -258,11 +258,11 @@ if not hasattr(a_client, "_old_read_binstar_tokens"):
     c_session.read_binstar_tokens = _new_read_binstar_tokens
 
 # conda.base.context.Context
-# Adds client_token as a managed string config parameter
-if not hasattr(Context, "client_token"):
+# Adds anaconda_ident as a managed string config parameter
+if not hasattr(Context, "anaconda_ident"):
     _param = ParameterLoader(PrimitiveParameter("default"))
-    Context.client_token = _param
-    Context.parameter_names += (_param._set_name("client_token"),)
+    Context.anaconda_ident = _param
+    Context.parameter_names += (_param._set_name("anaconda_ident"),)
 
 # conda.base.context.Context
 # Adds repo_tokens as a managed map config parameter
@@ -302,8 +302,8 @@ if DEBUG:
         else "UNPATCHED",
     )
     print(
-        "| CLIENT_TOKEN:",
-        "patched" if hasattr(context, "client_token") else "UNPATCHED",
+        "| ANACONDA_IDENT:",
+        "patched" if hasattr(context, "anaconda_ident") else "UNPATCHED",
     )
     print(
         "| REPO_TOKENS:",
