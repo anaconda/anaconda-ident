@@ -5,8 +5,8 @@
 The `anaconda-ident` package reconfigures [`conda`](https://docs.conda.io/)
 to deliver a configurable amount of additional telemetry data
 when requesting indices and packages from a server. This
-data is appended to the user agent string and to a custom
-`X-Conda-Ident` request header.
+data is appended to the user agent string, and delivered
+to a custom `X-Anaconda-Ident` request header.
 
 In its default mode, this telemetry data is *randomly
 generated* to avoid revealing personally identifiable content.
@@ -74,16 +74,16 @@ Here is an easy way to see precisely what is being shipped to the
 upstream server on Unix:
 
 ```
-conda search -vvv fakepackage 2>&1 | grep -E 'X-Conda-Ident|User-Agent'
+conda search -vvv fakepackage 2>&1 | grep -E 'X-Anaconda-Ident|User-Agent'
 ```
 
 This produces an output like this:
 
 ```
 > User-Agent: conda/22.11.1 requests/2.28.1 CPython/3.10.4 Darwin/22.2.0 OSX/13.1 c/NIedulQP s/sQPR5moe e/Tfgp_cYz
-> X-Conda-Ident: c/NIedulQP s/sQPR5moe e/Tfgp_cYz
+> X-Anaonda-Ident: c/NIedulQP s/sQPR5moe e/Tfgp_cYz
 > User-Agent: conda/22.11.1 requests/2.28.1 CPython/3.10.4 Darwin/22.2.0 OSX/13.1 c/NIedulQP s/sQPR5moe e/Tfgp_cYz
-> X-Conda-Ident: c/NIedulQP s/sQPR5moe e/Tfgp_cYz
+> X-Anaconda-Ident: c/NIedulQP s/sQPR5moe e/Tfgp_cYz
 ```
 
 ### Anonymous token design
@@ -124,7 +124,7 @@ simply uninstall the package:
 ```
 conda remove -n base anaconda-ident --force
 ```
-The `X-Conda-Ident` header will be removed, and the user agent
+The `X-Anaonda-Ident` header will be removed, and the user agent
 string will be returned to normal; for instance:
 
 ```
@@ -193,46 +193,53 @@ c/NIedulQP s/SsYPna-z e/Tfgp_cYz u/mgrant h/m1mbp.local n/base o/myorg
 ### Local configuration
 
 There are two approaches to setting the configuration for
-`anaconda-ident`. The first is to set the `client_token` parameter
-using `conda`'s standard configuration mechanisms.
+`anaconda-ident`. The first is to set the `anaconda_ident` parameter using `conda`'s standard configuration mechanisms.
 For instance, you can use the `conda config` command:
 
 ```
-conda config --set client_token userhost:my_org
+conda config --set anaconda_ident userhost:my_org
 ```
 You can manually edit your `~/.condarc` configuration file and
 insert a line; e.g.
 
 ```
-client_token: userhost:my_org.
+anaconda_ident: userhost:my_org.
 ```
 
-### Advanced: embedded configuration
+### Advanced: configuration package creation
 
 A key feature of the `anaconda_ident` package is the ability
-to embed key configuration information _within the package itself_,
-including any combination of the following:
+to create a sidecar conda package containing any combination
+of the following:
 
-- The `client_token` configuration string
+- The `anaconda_ident` configuration string
 - A custom `default_channels` value to point conda's `defaults`
   metachannel to an alternative repository
 - A standard Conda authentication token for a repository
 
-The typical use case for this is to build a custom version of
-the conda package that can be readily distributed within an
-organization. This enables a user to be fully configured to
-provide telemetry and access an authenticated repository with
-a single package installation. This package can be built
-into custom installers as well.
+The typical use case for this is to host this conda package
+on an internal package repository, and/or add it into
+custom Miniconda / Anaconda installers.
 
-The full command utilizes the `install` submodule of the
-`anaconda_ident` package. A typical command looks like
+The command to build this package is called `anaconda-keymgr`.
+Running `anaconda-keymgr --help` will provide all of the
+configuration options. Here is a typical call:
 
 ```
-python -m anaconda_ident.install --enable \
-   --config <CONFIG_STRING> --default-channel <REPO_URL> \
-   --set-condarc --repo-token <REPO_TOKEN> \
+anaconda-keymgr \
+    --version <VERSION_NUMBER> --build-string <ORGANIZATION> \
+    --config-string <CONFIG_STRING> \
+    --default-channel <REPO_URL> \
+    --repo-token <REPO_TOKEN> \
 ```
+
+The above command will create a package called
+
+`anaconda-ident-config-<VERSION>-<ORGANIZATION>_0.tar.bz2`.
+
+If this package is installed into a root conda environment,
+it will automatically activate `anaconda-ident` and configure
+it according to the settings provided.
 
 ## Distributing `anaconda-ident`
 
