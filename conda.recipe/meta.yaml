@@ -1,7 +1,7 @@
 {% set data = load_setup_py_data() %}
 
 package:
-  name: conda-ident
+  name: anaconda-ident
   version: {{ data['version'] }}
 
 source:
@@ -28,7 +28,7 @@ test:
     - bash tests/test_keymgr.sh
 
 about:
-  home: https://github.com/mcg1969/conda-ident
+  home: https://github.com/mcg1969/anaconda-ident
   summary: simple, opt-in user identification for conda clients
   license: {{ data.get('license') }}
   license_file: LICENSE

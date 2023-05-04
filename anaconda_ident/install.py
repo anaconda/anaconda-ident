@@ -13,19 +13,19 @@ def parse_argv():
     g.add_argument(
         "--enable",
         action="store_true",
-        help="Enable conda_ident operation. "
+        help="Enable anaconda_ident operation. "
         "Without further configuration, this enables randomized telemetry.",
     )
     g.add_argument(
         "--verify",
         action="store_true",
-        help="Enable conda_ident operation if necessary and exit immediately, "
+        help="Enable anaconda_ident operation if necessary and exit immediately, "
         "without reading or modifying the current configuration.",
     )
     g.add_argument(
         "--disable",
         action="store_true",
-        help="Disable conda_ident operation. "
+        help="Disable anaconda_ident operation. "
         "The configuration file is left in place, so that full operation can "
         "resume with a call to --enable. To remove the settings as well, use the "
         "--clean option instead.",
@@ -33,13 +33,13 @@ def parse_argv():
     g.add_argument(
         "--status",
         action="store_true",
-        help="Print the conda_ident patch and configuration status, and make no changes.",
+        help="Print the anaconda_ident patch and configuration status, and make no changes.",
     )
     g.add_argument(
         "--clean",
         action="store_true",
-        help="Disable conda_ident operation and remove all configuration data. "
-        "If you re-enable conda_ident, you will need to rebuild the configuration.",
+        help="Disable anaconda_ident operation and remove all configuration data. "
+        "If you re-enable anaconda_ident, you will need to rebuild the configuration.",
     )
     p.add_argument(
         "--config",
@@ -115,7 +115,7 @@ def tryop(op, *args, **kwargs):
 
 PATCH_TEXT = """
 try:
-    import conda_ident.patch
+    import anaconda_ident.patch
 except Exception as exc:
     pass
 """
@@ -136,9 +136,9 @@ def manage_patch(args):
                 text = fp.read()
         except Exception:
             if args and not args.ignore_missing:
-                error("conda_ident installation failed", fatal=True)
+                error("anaconda_ident installation failed", fatal=True)
             text = b""
-        return text, b"conda_ident" in text[-nline:]
+        return text, b"anaconda_ident" in text[-nline:]
 
     text, is_present = _read(pfile)
     if verbose:
@@ -215,7 +215,7 @@ def _yaml():
 
 def _print_config(what, args, config):
     if args.verbose or args.status:
-        value = config.get("client_token")
+        value = config.get("anaconda_ident")
         print("%s config: %s" % (what, value or "<default>"))
 
 
@@ -282,7 +282,7 @@ def manage_condarc(args, condarc):
     # config string
     if args.config is not None:
         new_token = "" if args.config == "default" else args.config
-        _set_or_delete(condarc, "client_token", new_token)
+        _set_or_delete(condarc, "anaconda_ident", new_token)
         _print_config("new", args, condarc)
     # default_channels
     if args.default_channel:
@@ -318,13 +318,13 @@ def write_condarc(args, fname, condarc):
     if not condarc:
         if exists(fname):
             if args.verbose:
-                print("removing conda_ident condarc...")
+                print("removing anaconda_ident condarc...")
             if not tryop(os.unlink, fname):
                 error("condarc removal failed")
         return
     if args.verbose:
         what = "updating" if exists(fname) else "creating"
-        print("%s conda_ident condarc..." % what)
+        print("%s anaconda_ident condarc..." % what)
     renamed = False
     try:
         os.makedirs(dirname(fname), exist_ok=True)
@@ -359,7 +359,7 @@ def main():
         if verbose:
             print(msg)
         return 0
-    fname = join(sys.prefix, "etc", "conda_ident.yml")
+    fname = join(sys.prefix, "etc", "anaconda_ident.yml")
     condarc = read_condarc(args, fname)
     if not success or args.status:
         if verbose:

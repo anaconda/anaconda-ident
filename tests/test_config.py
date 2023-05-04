@@ -2,13 +2,13 @@ import os
 import sys
 import subprocess
 
-from conda_ident import patch
+from anaconda_ident import patch
 from ruamel.yaml import safe_load
 from conda.base.context import context
 
 context.__init__()
 
-os.environ["CONDA_IDENT_DEBUG"] = "1"
+os.environ["ANACONDA_IDENT_DEBUG"] = "1"
 
 print("Environment variables:")
 print("-----")
@@ -17,10 +17,10 @@ print("DEFAULT_CHANNELS:", os.environ.get("DEFAULT_CHANNELS") or "")
 print("CHANNEL_ALIAS:", os.environ.get("CHANNEL_ALIAS") or "")
 print("REPO_TOKEN:", os.environ.get("REPO_TOKEN") or "")
 print("SKIP_INSTALL:", os.environ.get("SKIP_INSTALL") or False)
-print("CONDA_IDENT_DEBUG:", os.environ.get("CONDA_IDENT_DEBUG") or "")
+print("ANACONDA_IDENT_DEBUG:", os.environ.get("ANACONDA_IDENT_DEBUG") or "")
 print("-----")
 p = subprocess.run(
-    ["python", "-m", "conda_ident.install", "--status"], capture_output=True
+    ["python", "-m", "anaconda_ident.install", "--status"], capture_output=True
 )
 print(p.stdout.decode("utf-8").strip())
 print("-----")
@@ -31,7 +31,7 @@ print("-----")
 # Verify baked configurations, if any
 success = True
 config_env = os.environ.get("CONFIG_STRING") or ""
-config_baked, _ = patch.get_config_value("client_token")
+config_baked, _ = patch.get_config_value("anaconda_ident")
 if not config_env and config_baked is not None:
     print("Unexpected baked configuration:", config_baked)
     success = False
@@ -149,7 +149,7 @@ for flag in flags:
         print("")
         print("----")
         p = subprocess.run(
-            ["python", "-m", "conda_ident.install", flag], capture_output=True
+            ["python", "-m", "anaconda_ident.install", flag], capture_output=True
         )
         print(p.stdout.decode("utf-8"))
         print("----")
@@ -168,7 +168,7 @@ for flag in flags:
         )
         if not skip_install:
             subprocess.run(
-                ["python", "-m", "conda_ident.install", "--config", param],
+                ["python", "-m", "anaconda_ident.install", "--config", param],
                 capture_output=True,
             )
         # Make sure to leave override-channels and the full channel URL in here.
@@ -188,7 +188,7 @@ for flag in flags:
             text=True,
         )
         user_agent = [v for v in proc.stderr.splitlines() if "User-Agent" in v]
-        header = [v for v in proc.stderr.splitlines() if "X-Conda-Ident" in v]
+        header = [v for v in proc.stderr.splitlines() if "X-Anaconda-Ident" in v]
         user_agent = user_agent[0].split(":", 1)[-1].strip() if user_agent else ""
         header = header[0].split(": ", 1)[-1].strip() if header else ""
         assert user_agent.endswith(header), (user_agent, header)
@@ -216,9 +216,11 @@ for flag in flags:
         nfailed += failed
         if not skip_install:
             subprocess.run(
-                ["python", "-m", "conda_ident.install", "--config", ""],
+                ["python", "-m", "anaconda_ident.install", "--config", ""],
                 capture_output=True,
             )
+        if failed and '--fast' in sys.argv:
+            sys.exit(1)
 
 
 print("FAILURES:", nfailed)

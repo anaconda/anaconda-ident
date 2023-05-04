@@ -1,12 +1,12 @@
-# conda-ident
+# anaconda-ident
 
 ## Simple user identification for conda
 
-The `conda-ident` package reconfigures [`conda`](https://docs.conda.io/)
+The `anaconda-ident` package reconfigures [`conda`](https://docs.conda.io/)
 to deliver a configurable amount of additional telemetry data
 when requesting indices and packages from a server. This
-data is appended to the user agent string and to a custom
-`X-Conda-Ident` request header.
+data is appended to the user agent string, and delivered
+to a custom `X-Anaconda-Ident` request header.
 
 In its default mode, this telemetry data is *randomly
 generated* to avoid revealing personally identifiable content.
@@ -34,10 +34,10 @@ they authenticate to the package repository.
 
 ### Installation
 
-To use conda-ident, simply install it in your base environment:
+To use anaconda-ident, simply install it in your base environment:
 
 ```
-conda install -n base conda-ident
+conda install -n base anaconda-ident
 ```
 This package has no additional dependencies other than `conda`
 itself. It employs post-link and activation scripts to apply a
@@ -58,7 +58,7 @@ OSX/13.1 c/NIedulQP s/sQPR5moe e/Tfgp_cYz
 
 The first five tokens constitute the standard user-agent string
 that conda *normally* sends with HTTP requests. The last three tokens,
-however, are added by `conda-ident`:
+however, are added by `anaconda-ident`:
 
 - A *client token* `c/NIedulQP` is generated once by the
   conda client and saved in the `~/.conda` directory, so that
@@ -74,16 +74,16 @@ Here is an easy way to see precisely what is being shipped to the
 upstream server on Unix:
 
 ```
-conda search -vvv fakepackage 2>&1 | grep -E 'X-Conda-Ident|User-Agent'
+conda search -vvv fakepackage 2>&1 | grep -E 'X-Anaconda-Ident|User-Agent'
 ```
 
 This produces an output like this:
 
 ```
 > User-Agent: conda/22.11.1 requests/2.28.1 CPython/3.10.4 Darwin/22.2.0 OSX/13.1 c/NIedulQP s/sQPR5moe e/Tfgp_cYz
-> X-Conda-Ident: c/NIedulQP s/sQPR5moe e/Tfgp_cYz
+> X-Anaonda-Ident: c/NIedulQP s/sQPR5moe e/Tfgp_cYz
 > User-Agent: conda/22.11.1 requests/2.28.1 CPython/3.10.4 Darwin/22.2.0 OSX/13.1 c/NIedulQP s/sQPR5moe e/Tfgp_cYz
-> X-Conda-Ident: c/NIedulQP s/sQPR5moe e/Tfgp_cYz
+> X-Anaconda-Ident: c/NIedulQP s/sQPR5moe e/Tfgp_cYz
 ```
 
 ### Anonymous token design
@@ -116,15 +116,15 @@ configuration, including some that *do* reveal more concrete identifying
 information such as username, hostname, and environment name. This
 is discussed in the Configuration section below.
 
-### Removing `conda-ident`
+### Removing `anaconda-ident`
 
 In order to stop the delivery of the custom tokens entirely,
 simply uninstall the package:
 
 ```
-conda remove -n base conda-ident --force
+conda remove -n base anaconda-ident --force
 ```
-The `X-Conda-Ident` header will be removed, and the user agent
+The `X-Anaonda-Ident` header will be removed, and the user agent
 string will be returned to normal; for instance:
 
 ```
@@ -139,7 +139,7 @@ The package supports a larger set of tokens
 
 ### The token list
 
-All of the tokens produced by `conda-ident` take the form
+All of the tokens produced by `anaconda-ident` take the form
 `<character>/<value>`:
 
 - `c`: client token
@@ -173,7 +173,7 @@ For convenience, a number of special keywords are also available,
 all of which can be combined with the organization string.
 
 - `none`: no tokens. This keyword effectively disables
-  `conda-ident`, unless coupled with an organization string.
+  `anaconda-ident`, unless coupled with an organization string.
 - `default`: equivalent to `cse`.
 - `username`: equivalent to `cseu`.
 - `hostname`: equivalent to `cseh`.
@@ -182,7 +182,7 @@ all of which can be combined with the organization string.
 - `hostenv`: equivalent to `csehn`.
 - `full`: equivalent to `cseuhn`; includes non-organization tokens.
   When coupled with an organization string, this setting includes
-  every identifer currently offered by `conda-ident`.
+  every identifer currently offered by `anaconda-ident`.
 
 Here is an example set of tokens for the configuration `full:myorg`:
 
@@ -193,60 +193,67 @@ c/NIedulQP s/SsYPna-z e/Tfgp_cYz u/mgrant h/m1mbp.local n/base o/myorg
 ### Local configuration
 
 There are two approaches to setting the configuration for
-`conda-ident`. The first is to set the `client_token` parameter
-using `conda`'s standard configuration mechanisms.
+`anaconda-ident`. The first is to set the `anaconda_ident` parameter using `conda`'s standard configuration mechanisms.
 For instance, you can use the `conda config` command:
 
 ```
-conda config --set client_token userhost:my_org
+conda config --set anaconda_ident userhost:my_org
 ```
 You can manually edit your `~/.condarc` configuration file and
 insert a line; e.g.
 
 ```
-client_token: userhost:my_org.
+anaconda_ident: userhost:my_org.
 ```
 
-### Advanced: embedded configuration
+### Advanced: configuration package creation
 
-A key feature of the `conda_ident` package is the ability
-to embed key configuration information _within the package itself_,
-including any combination of the following:
+A key feature of the `anaconda_ident` package is the ability
+to create a sidecar conda package containing any combination
+of the following:
 
-- The `client_token` configuration string
+- The `anaconda_ident` configuration string
 - A custom `default_channels` value to point conda's `defaults`
   metachannel to an alternative repository
 - A standard Conda authentication token for a repository
 
-The typical use case for this is to build a custom version of
-the conda package that can be readily distributed within an
-organization. This enables a user to be fully configured to
-provide telemetry and access an authenticated repository with
-a single package installation. This package can be built
-into custom installers as well.
+The typical use case for this is to host this conda package
+on an internal package repository, and/or add it into
+custom Miniconda / Anaconda installers.
 
-The full command utilizes the `install` submodule of the
-`conda_ident` package. A typical command looks like
+The command to build this package is called `anaconda-keymgr`.
+Running `anaconda-keymgr --help` will provide all of the
+configuration options. Here is a typical call:
 
 ```
-python -m conda_ident.install --enable \
-   --config <CONFIG_STRING> --default-channel <REPO_URL> \
-   --set-condarc --repo-token <REPO_TOKEN> \
+anaconda-keymgr \
+    --version <VERSION_NUMBER> --build-string <ORGANIZATION> \
+    --config-string <CONFIG_STRING> \
+    --default-channel <REPO_URL> \
+    --repo-token <REPO_TOKEN> \
 ```
 
-## Distributing `conda-ident`
+The above command will create a package called
+
+`anaconda-ident-config-<VERSION>-<ORGANIZATION>_0.tar.bz2`.
+
+If this package is installed into a root conda environment,
+it will automatically activate `anaconda-ident` and configure
+it according to the settings provided.
+
+## Distributing `anaconda-ident`
 
 If you are an Anaconda customer interested in deploying
-`conda-ident` within your organization, please feel free to
+`anaconda-ident` within your organization, please feel free to
 reach out to [Anaconda Support](mailto:support@anaconda.com). 
 We can offer the folllowing custom buidls:
 
-- A set of `conda-ident` packages containing your
+- A set of `anaconda-ident` packages containing your
   preferred configuration.
 - A set of `conda` packages with metadata patched to
-  include a `conda-ident` dependency.
+  include a `anaconda-ident` dependency.
 - Builds of the latest Miniconda and Anaconda installers
-  with `conda-ident` added to them.
+  with `anaconda-ident` added to them.
   
 By hosting these builds in your internal package repository
 and software store, you can greatly simplify the distribution

@@ -17,7 +17,7 @@ grep '|' $SCRIPTDIR/config_tests.txt | while IFS="|" read cstr def cha rtk bstr;
     echo "build string: $bstr"
     echo "build number: $bnum"
     echo "--------"
-    output=$(python -m conda_ident.keymgr \
+    output=$(python -m anaconda_ident.keymgr \
              --name "testpkg" --version "$ver" --build-string "$bstr" --build-number "$bnum" \
              --config-string "$cstr" --default-channel "$def" --channel-alias "$cha" --repo-token "$rtk")
     echo "$output"
@@ -30,7 +30,7 @@ grep '|' $SCRIPTDIR/config_tests.txt | while IFS="|" read cstr def cha rtk bstr;
     conda list testpkg | grep -q ^testpkg || exit -1
     CONFIG_STRING="$cstr" DEFAULT_CHANNELS="$def" \
         CHANNEL_ALIAS="$cha" REPO_TOKEN="$rtk" \
-        CONDA_IDENT_DEBUG=1 SKIP_INSTALL=1 python $SCRIPTDIR/test_config.py
+        ANACONDA_IDENT_DEBUG=1 SKIP_INSTALL=1 python $SCRIPTDIR/test_config.py
     conda remove -p $CONDA_PREFIX testpkg --force --offline --yes
     rm $fname
 done
