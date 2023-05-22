@@ -9,6 +9,11 @@ from tarfile import open as tf_open, TarInfo
 from datetime import datetime
 from os.path import basename, dirname
 
+try:
+    import ruamel.yaml as ruamel_yaml
+except Exception:
+    import ruamel_yaml
+
 
 LINE = "-" * 16
 
@@ -113,11 +118,14 @@ PATHS_JSON = {
 }
 
 
-def _bytes(data):
+def _bytes(data, yaml=False):
     if isinstance(data, bytes):
         pass
     elif isinstance(data, dict):
-        data = json.dumps(data, separators=(",", ":"), sort_keys=True).encode("ascii")
+        if yaml:
+            data = ruamel_yaml.safe_dump(data, default_flow_style=False).encode("ascii")
+        else:
+            data = json.dumps(data, separators=(",", ":"), sort_keys=True).encode("ascii")
     elif isinstance(data, str):
         data = data.encode("utf-8")
     else:
@@ -147,7 +155,7 @@ def build_tarfile(dname, args, config_dict):
     build_string = (args.build_string + "_" if args.build_string else "") + str(
         build_number
     )
-    config_data, config_size = _bytes(config_dict)
+    config_data, config_size = _bytes(config_dict, yaml=True)
     h = hashlib.new("sha256")
     h.update(config_data)
     config_hash = h.hexdigest()
