@@ -81,7 +81,7 @@ This produces an output like this:
 
 ```
 > User-Agent: conda/22.11.1 requests/2.28.1 CPython/3.10.4 Darwin/22.2.0 OSX/13.1 c/NIedulQP s/sQPR5moe e/Tfgp_cYz
-> X-Anaonda-Ident: c/NIedulQP s/sQPR5moe e/Tfgp_cYz
+> X-Anaconda-Ident: c/NIedulQP s/sQPR5moe e/Tfgp_cYz
 > User-Agent: conda/22.11.1 requests/2.28.1 CPython/3.10.4 Darwin/22.2.0 OSX/13.1 c/NIedulQP s/sQPR5moe e/Tfgp_cYz
 > X-Anaconda-Ident: c/NIedulQP s/sQPR5moe e/Tfgp_cYz
 ```
@@ -124,7 +124,7 @@ simply uninstall the package:
 ```
 conda remove -n base anaconda-ident --force
 ```
-The `X-Anaonda-Ident` header will be removed, and the user agent
+The `X-Anaconda-Ident` header will be removed, and the user agent
 string will be returned to normal; for instance:
 
 ```
