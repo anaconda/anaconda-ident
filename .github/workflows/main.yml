@@ -59,6 +59,9 @@ jobs:
     - name: Test the package
       run: |
         set -x
+        if [ -f ./testenv/Scripts/conda.exe ]; then \
+           sed -i.bak "s@CONDA_EXE=.*@CONDA_EXE=$PWD/testenv/Scripts/conda.exe@" testenv/etc/profile.d/conda.sh; \
+        fi
         source ./testenv/*/activate
         cd tests
         python -m anaconda_ident.install --status
