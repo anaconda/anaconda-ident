@@ -18,7 +18,7 @@ requirements:
     - pip
   run:
     - python>=3.6
-    - conda
+    - conda>=22.11.0
 
 test:
   source_files:
