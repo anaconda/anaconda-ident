@@ -351,7 +351,7 @@ def main():
         msg = "-" * len(msg)
         print(msg)
         if len(sys.argv) <= 1:
-            sys.argv[0] = "conda-ident"
+            sys.argv[0] = "anaconda-ident"
             p.print_help()
             print(msg)
     manage_patch(args)

@@ -48,8 +48,8 @@ def parse_argv():
     )
     p.add_argument(
         "--name",
-        default="conda-ident-config",
-        help="The conda name for the package. Defaults to conda-ident-config.",
+        default="anaconda-ident-config",
+        help="The conda name for the package. Defaults to anaconda-ident-config.",
     )
     p.add_argument(
         "--version",
