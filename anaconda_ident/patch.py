@@ -207,8 +207,13 @@ def _new_check_prefix(prefix, json=False):
 def _new_read_binstar_tokens():
     tokens = a_client._old_read_binstar_tokens()
     n_tokens, _ = get_config_value("repo_tokens")
-    if n_tokens is not None:
-        tokens.update(n_tokens)
+    for k, v in (n_tokens or {}).items():
+        # Tokens saved on disk take priority
+        for k2, v2 in tokens.items():
+            if k2.startswith(k) and v2:
+                break
+        else:
+            tokens[k] = v
     return tokens
 
 
@@ -281,7 +286,7 @@ if DEBUG:
         "loaded" if getattr(context, "client_token_raw", None) else "MISSING",
     )
     print(
-        "| USER AGENT:" "patched"
+        "| USER AGENT:", "patched"
         if getattr(Context, "_old_user_agent", None)
         else "UNPATCHED"
     )
