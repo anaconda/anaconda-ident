@@ -139,6 +139,8 @@ def _new_init(*args, **kwargs):
         import anaconda_ident.patch
     except Exception as exc:
         print("Error loading anaconda_ident:", exc)
+        if os.environ.get('ANACONDA_IDENT_DEBUG'):
+            raise
     context.__init__ = _old__init__
     _old__init__(*args, **kwargs)
 context.__init__ = _new_init
@@ -147,15 +149,14 @@ context.__init__ = _new_init
 
 
 def manage_patch(args):
-    global PATCH_TEXT
-    global OLD_PATCH_TEXT
     verbose = args.verbose or args.status
 
     sp_dir = sysconfig.get_paths()["purelib"]
     pfile = join(sp_dir, "conda", "base", "context.py")
-    nline = len(PATCH_TEXT)
 
     def _read(pfile):
+        global PATCH_TEXT
+        global OLD_PATCH_TEXT
         try:
             with open(pfile, "rb") as fp:
                 text = fp.read()
@@ -163,9 +164,13 @@ def manage_patch(args):
             if args and not args.ignore_missing:
                 error("anaconda_ident installation failed", fatal=True)
             text = b""
-        chunk = text[-nline:]
-        is_present = b"# anaconda_ident p2" in chunk
-        need_update = not is_present and b"anaconda_ident" in chunk
+        wineol = b"\r\n" in text
+        if wineol != (b"\r\n" in PATCH_TEXT):
+            args = (b"\n", b"\r\n") if wineol else (b"\r\n", b"\n")
+            PATCH_TEXT = PATCH_TEXT.replace(*args)
+            OLD_PATCH_TEXT = OLD_PATCH_TEXT.replace(*args)
+        is_present = text.endswith(PATCH_TEXT)
+        need_update = not is_present and b"anaconda_ident" in text
         return text, is_present, need_update
 
     text, is_present, need_update = _read(pfile)
@@ -203,11 +208,6 @@ def manage_patch(args):
         print(status, "patch...")
     renamed = False
     try:
-        wineol = b"\r\n" in text
-        if wineol != (b"\r\n" in PATCH_TEXT):
-            args = (b"\n", b"\r\n") if wineol else (b"\r\n", b"\n")
-            PATCH_TEXT = PATCH_TEXT.replace(*args)
-            OLD_PATCH_TEXT = OLD_PATCH_TEXT.replace(*args)
         if is_present:
             text = text.replace(PATCH_TEXT, b"")
         if need_update:
