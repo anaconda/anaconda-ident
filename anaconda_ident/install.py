@@ -241,7 +241,7 @@ def manage_patch(args):
             what = "deactivation"
         else:
             what = "activation"
-        error("%s failed" % ("deactivation" if is_present else "activation"))
+        error("%s failed" % what)
         if renamed:
             os.rename(pfile_orig, pfile)
 
