@@ -1,6 +1,7 @@
 import sysconfig
 import traceback
 import argparse
+import stat
 import sys
 import os
 
