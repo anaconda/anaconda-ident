@@ -417,7 +417,11 @@ def write_binstar(args, condarc):
         try:
             if args.verbose:
                 print('installing token:', url)
-            os.makedirs(dirname(fpath), exist_ok=True)
+            fdir = dirname(fpath)
+            os.makedirs(fdir, exist_ok=True)
+            os.chmod(fdir, stat.S_IWRITE)
+            if exists(fpath):
+                os.chmod(fpath, stat.S_IWRITE)
             with open(fpath, 'w') as fp:
                 fp.write(token)
             t_success = True
