@@ -6,8 +6,6 @@ import os
 
 from os.path import basename, dirname, exists, join, relpath
 
-PREFIX = os.environ['CONDA_PREFIX']
-
 
 def parse_argv():
     p = argparse.ArgumentParser()
@@ -175,8 +173,8 @@ def manage_patch(args):
 
     text, is_present, need_update = _read(pfile)
     if verbose:
-        print("conda prefix:", PREFIX)
-        print("patch target:", relpath(pfile, PREFIX))
+        print("conda prefix:", sys.prefix)
+        print("patch target:", relpath(pfile, sys.prefix))
         if is_present:
             status = "ENABLED"
         elif need_update:
@@ -317,7 +315,7 @@ def read_condarc(args, fname):
     verbose = args.verbose or args.status
     fexists = exists(fname)
     if verbose:
-        spath = relpath(fname, PREFIX)
+        spath = relpath(fname, sys.prefix)
         print("config file: %s%s" % (spath, "" if fexists else " (not present)"))
     if not fexists:
         return {}
