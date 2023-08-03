@@ -3,25 +3,24 @@
 set -e
 
 SCRIPTDIR=$(cd $(dirname $BASH_SOURCE[0]) && pwd)
-source $CONDA_PREFIX/etc/profile.d/conda.sh
-conda activate base
+vflag=$1; shift
+source $CONDA_PREFIX/*/activate
 
-CONDA_ROOT=$(dirname $(dirname $CONDA_EXE))
 SITE=https://repo.anaconda.cloud
 ALIAS=$SITE/repo
 anaconda-keymgr --version 999 --repo-token $TEST_REPO_TOKEN \
     --default-channel $ALIAS/main --default-channel $ALIAS/msys2 \
     --config-string full:installertest
-mkdir -p $CONDA_ROOT/conda-bld/noarch
-mv anaconda-ident-config-999-default_0.tar.bz2 $CONDA_ROOT/conda-bld/noarch
-pushd $CONDA_ROOT/conda-bld && conda index && popd
+mkdir -p $CONDA_PREFIX/conda-bld/noarch
+mv anaconda-ident-config-999-default_0.tar.bz2 $CONDA_PREFIX/conda-bld/noarch
+python -m conda_index $CONDA_PREFIX/conda-bld
 
 TMPDIR=$(mktemp -d)
 trap 'rm -rf -- "$TMPDIR"' EXIT
 echo $TMPDIR
 cd $TMPDIR
 
-[ -z "$1" ] || vflag="==$1"
+[ -z "$vflag" ] || vflag="==$vflag"
 
 cat >construct.yaml <<EOD
 name: AIDTest
