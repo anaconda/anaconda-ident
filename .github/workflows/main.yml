@@ -68,6 +68,8 @@ jobs:
         python test_config.py
         bash test_keymgr.sh
     - name: Test an installer
+      env:
+        TEST_REPO_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
       run: |
         mv $CONDA/conda-bld ./testenv/conda-bld
         source ./testenv/*/activate
