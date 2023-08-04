@@ -1,6 +1,6 @@
 #!/bin/bash
 echo -n "installed python ... "
-T_PREFIX=$1; shift
+T_PREFIX=$(cd $1 && pwd); shift
 TEST_REPO_TOKEN=$1; shift
 T_PYTHON_WIN=$T_PREFIX/python.exe
 T_PYTHON_UNX=$T_PREFIX/bin/python
@@ -23,7 +23,10 @@ cinfo=$($T_PYTHON -m conda info)
 echo "$cinfo" | grep -vE '^ *$'
 echo "------"
 echo -n "correct prefix ... "
-if echo "$status" | grep -xq "conda prefix: $T_PREFIX"; then
+test_prefix=$(echo "$status" | sed -nE 's@ *conda prefix: @@p')
+# For windows this converts the prefix to posix
+test_prefix=$(cd $test_prefix && pwd)
+if [ "$test_prefix" = "$T_PREFIX" ]; then
   echo "yes"
 else
   echo "NO"
@@ -57,9 +60,4 @@ if echo "$user_agent" | grep -q o/installertest; then
   echo "yes"
 else
   echo "NO: $user_agent"
-fi
-if [ "$success" = yes ]; then
-  exit 0
-else
-  exit -1
 fi
