@@ -58,7 +58,6 @@ jobs:
         conda install -n base -y local::anaconda-ident anaconda-client constructor conda-index
         conda create -p ./testenv local::anaconda-ident conda==${{ matrix.cversion }}
     - name: Test an installer
-      if: matrix.os != 'windows-latest'
       env:
         TEST_REPO_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
       run: |
