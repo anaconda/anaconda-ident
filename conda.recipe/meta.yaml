@@ -9,7 +9,7 @@ source:
 
 build:
   noarch: python
-  entrypoints:
+  entry_points:
     - anaconda-ident = anaconda_ident.install:main
     - anaconda-keymgr = anaconda_ident.keymgr:main
 
