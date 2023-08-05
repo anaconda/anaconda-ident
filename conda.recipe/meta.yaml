@@ -9,6 +9,9 @@ source:
 
 build:
   noarch: python
+  entrypoints:
+    - anaconda-ident = anaconda_ident.install:main
+    - anaconda-keymgr = anaconda_ident.keymgr:main
 
 requirements:
   host:
@@ -21,11 +24,9 @@ requirements:
     - conda>=22.11.0
 
 test:
-  source_files:
-    - tests
   commands:
-    - python tests/test_config.py
-    - bash tests/test_keymgr.sh
+    - anaconda-ident --status
+    - anaconda-keymgr --help
 
 about:
   home: https://github.com/mcg1969/anaconda-ident
