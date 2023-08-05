@@ -37,6 +37,7 @@ jobs:
       run:
         shell: bash
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         cversion: [22.11.0,23.7.2]
@@ -57,12 +58,30 @@ jobs:
         source $CONDA/etc/profile.d/conda.sh
         conda install -n base -y local::anaconda-ident anaconda-client constructor conda-index
         conda create -p ./testenv local::anaconda-ident conda==${{ matrix.cversion }}
-    - name: Test an installer
-      if: matrix.os != 'windows-latest'
+    - name: Build an installer
       env:
         TEST_REPO_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
       run: |
-        CONDA_PREFIX=$CONDA bash tests/test_installer.sh ${{ matrix.cversion }}
+        cd tests
+        export CONDA_PREFIX=$CONDA
+        bash test_installer.sh "$TEST_REPO_TOKEN" ${{ matrix.cversion }}
+    - name: Run the installer (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: cmd
+      run: |
+        cd tests
+        start /wait AIDTest-1.0-Windows-x86_64.exe /S /D=%USERPROFILE%\aidtest
+    - name: Run the installer (Unix)
+      if: matrix.os != 'windows-latest'
+      run: |
+        cd tests
+        bash AIDTest*.sh -b -p ~/aidtest -k
+    - name: Test the installed environment
+      env:
+        TEST_REPO_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+      run: |
+        cd tests
+        bash test_environment.sh ~/aidtest "$TEST_REPO_TOKEN"
     - name: Test the package
       run: |
         set -x
