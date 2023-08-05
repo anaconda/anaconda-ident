@@ -158,31 +158,30 @@ All of the tokens produced by `anaconda-ident` take the form
 ### The configuration string
 
 A standard configuration string is simply a combination of one
-or more of these characters. For the organization token, the
-arbitrary string is appended to this configuration with a
-leading colon `:`. If you supply an organization string without
-including an `o` in your configuration, one is added for you.
+or more of the characters `c`, `s`, `e`, `u`, `h`, and `n`. To
+include an organization string, append it to this configuraton
+with a leading colon `:`.
 
 Here are some examples:
 
 - `cse`: the default combination of client, session and environment.
-- `uho:finance` or `uh:finance`: username, hostname, and a `finance` organziation.
+- `uh:finance`: username, hostname, and a `finance` organziation.
 - `cseuhn:eng`: all the tokens, including an `eng` organization.
 
 For convenience, a number of special keywords are also available,
 all of which can be combined with the organization string.
 
-- `none`: no tokens. This keyword effectively disables
-  `anaconda-ident`, unless coupled with an organization string.
+- `none`: no tokens. By itself, this keyword effectively disables
+  the user-agent telemetry of `anaconda-ident`. If an
+  organization string is appended (e.g., `none:myorg`), it
+  will be the only token included in the user-agent.
 - `default`: equivalent to `cse`.
 - `username`: equivalent to `cseu`.
 - `hostname`: equivalent to `cseh`.
 - `userhost`: equivalent to `cseuh`.
 - `userenv`: equivalent to `cseun`.
 - `hostenv`: equivalent to `csehn`.
-- `full`: equivalent to `cseuhn`; includes non-organization tokens.
-  When coupled with an organization string, this setting includes
-  every identifer currently offered by `anaconda-ident`.
+- `full`: equivalent to `cseuhn`.
 
 Here is an example set of tokens for the configuration `full:myorg`:
 
