@@ -25,7 +25,7 @@ use cases, including:
 - Implementing a per-departnment chargeback mechanism
 - Tracing the distribution of a package that has been flagged for
   security reasons to specific users, machines, or environments
-  
+
 This approach to gathering usage data is more passive and
 therefore more convenient for users than, say, requiring that
 they authenticate to the package repository.
@@ -102,7 +102,7 @@ reveal identifying information about the user or the host. Specifically:
 - The byte streams are
   [base64-encoded](https://docs.python.org/3/library/base64.html#base64.urlsafe_b64encode)
   to create the tokens themselves.
-  
+
 In short, these tokens were design so that they cannot be used
 to recover an underlying username, hostname, or
 environment name. The underlying purpose of these tokens is
@@ -128,7 +128,7 @@ The `X-Anaconda-Ident` header will be removed, and the user agent
 string will be returned to normal; for instance:
 
 ```
-user-agent : conda/22.11.1 requests/2.28.1 CPython/3.10.4 Darwin/22.2.0 OSX/13.1 
+user-agent : conda/22.11.1 requests/2.28.1 CPython/3.10.4 Darwin/22.2.0 OSX/13.1
 ```
 The telemetry can also be disabled with a configuration setting;
 see below. But removing the package provides the strongest assurance.
@@ -245,7 +245,7 @@ it according to the settings provided.
 
 If you are an Anaconda customer interested in deploying
 `anaconda-ident` within your organization, please feel free to
-reach out to [Anaconda Support](mailto:support@anaconda.com). 
+reach out to [Anaconda Support](mailto:support@anaconda.com).
 We can offer the folllowing custom buidls:
 
 - A set of `anaconda-ident` packages containing your
@@ -254,7 +254,7 @@ We can offer the folllowing custom buidls:
   include a `anaconda-ident` dependency.
 - Builds of the latest Miniconda and Anaconda installers
   with `anaconda-ident` added to them.
-  
+
 By hosting these builds in your internal package repository
 and software store, you can greatly simplify the distribution
 of this tool throughout your organization.

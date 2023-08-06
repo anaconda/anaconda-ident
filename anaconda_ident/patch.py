@@ -286,9 +286,8 @@ if DEBUG:
         "loaded" if getattr(context, "client_token_raw", None) else "MISSING",
     )
     print(
-        "| USER AGENT:", "patched"
-        if getattr(Context, "_old_user_agent", None)
-        else "UNPATCHED"
+        "| USER AGENT:",
+        "patched" if getattr(Context, "_old_user_agent", None) else "UNPATCHED",
     )
     print(
         "| CONDA_AUTH:",

@@ -3,7 +3,6 @@ import sys
 import subprocess
 
 from anaconda_ident import patch
-from ruamel.yaml import safe_load
 from conda.base.context import context
 
 context.__init__()
@@ -219,7 +218,7 @@ for flag in flags:
                 ["python", "-m", "anaconda_ident.install", "--config", ""],
                 capture_output=True,
             )
-        if failed and '--fast' in sys.argv:
+        if failed and "--fast" in sys.argv:
             sys.exit(1)
 
 
