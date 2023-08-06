@@ -103,12 +103,13 @@ def parse_argv():
 success = True
 
 
-def error(what, fatal=False):
+def error(what, fatal=False, traceback=True):
     global success
     print("ERROR:", what)
-    print("-----")
-    traceback.print_exc()
-    print("-----")
+    if traceback:
+        print("-----")
+        traceback.print_exc()
+        print("-----")
     if fatal:
         print("cannot proceed; exiting.")
         sys.exit(-1)
@@ -363,9 +364,14 @@ def manage_condarc(args, condarc):
                 condarc.get("channel_alias", "")
             ]
             defchan = [c for c in defchan if "/" in c]
-            if defchan:
-                defchan = "/".join(defchan[0].strip().split("/", 3)[:3]) + "/"
-                tokens[defchan] = args.repo_token.strip()
+            if not defchan:
+                if args.verbose:
+                    print("------------------------")
+                error("A repo_token value may only be supplied if accompanied\n"
+                      "by a channel_alias or default_channels value.",
+                      fatal=True, traceback=False)
+            defchan = "/".join(defchan[0].strip().split("/", 3)[:3]) + "/"
+            tokens[defchan] = args.repo_token.strip()
         _set_or_delete(condarc, "repo_tokens", tokens)
         _print_tokens("new", args, condarc)
     _set_or_delete(condarc, "add_anaconda_token", bool(condarc.get("repo_tokens")))
