@@ -125,7 +125,9 @@ def _bytes(data, yaml=False):
         if yaml:
             data = ruamel_yaml.safe_dump(data, default_flow_style=False).encode("ascii")
         else:
-            data = json.dumps(data, separators=(",", ":"), sort_keys=True).encode("ascii")
+            data = json.dumps(data, separators=(",", ":"), sort_keys=True).encode(
+                "ascii"
+            )
     elif isinstance(data, str):
         data = data.encode("utf-8")
     else:

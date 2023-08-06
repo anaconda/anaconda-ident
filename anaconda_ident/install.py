@@ -1,5 +1,4 @@
 import sysconfig
-import traceback
 import argparse
 import stat
 import sys
@@ -78,7 +77,7 @@ def parse_argv():
         action="store_true",
         help="Write the token to the standard location. This is needed for certain "
         "packages like Anaconda Navigator that do not use conda for authentication. "
-        "This is most useful in an installer post-install script."
+        "This is most useful in an installer post-install script.",
     )
     p.add_argument(
         "--quiet",
@@ -103,12 +102,13 @@ def parse_argv():
 success = True
 
 
-def error(what, fatal=False):
+def error(what, fatal=False, traceback=True):
     global success
     print("ERROR:", what)
-    print("-----")
-    traceback.print_exc()
-    print("-----")
+    if traceback:
+        print("-----")
+        traceback.print_exc()
+        print("-----")
     if fatal:
         print("cannot proceed; exiting.")
         sys.exit(-1)
@@ -153,7 +153,7 @@ def manage_patch(args):
     sp_dir = sysconfig.get_paths()["purelib"]
     pfile = join(sp_dir, "conda", "base", "context.py")
 
-    def _read(pfile):
+    def _read(args, pfile):
         global PATCH_TEXT
         global OLD_PATCH_TEXT
         try:
@@ -172,7 +172,7 @@ def manage_patch(args):
         need_update = not is_present and b"anaconda_ident" in text
         return text, is_present, need_update
 
-    text, is_present, need_update = _read(pfile)
+    text, is_present, need_update = _read(args, pfile)
     if verbose:
         print("conda prefix:", sys.prefix)
         print("patch target:", relpath(pfile, sys.prefix))
@@ -211,13 +211,16 @@ def manage_patch(args):
             text = text.replace(PATCH_TEXT, b"")
         if need_update:
             if text.endswith(OLD_PATCH_TEXT):
-                text = text[:-len(OLD_PATCH_TEXT)]
+                text = text[: -len(OLD_PATCH_TEXT)]
             elif b"# anaconda_ident " in text:
-                text = text[:text.find(b"# anaconda_ident p")]
+                text = text[: text.find(b"# anaconda_ident p")]
             else:
-                error("unexpected error patching conda. please reinstall conda", fatal=True)
+                error(
+                    "unexpected error patching conda. please reinstall conda",
+                    fatal=True,
+                )
         # safety valve
-        if len(text) < 70000:        
+        if len(text) < 70000:
             error("unexpected error patching conda, no changes made", fatal=True)
         # We do not append to the original file because this is
         # likely a hard link into the package cache, so doing so
@@ -244,7 +247,7 @@ def manage_patch(args):
         if renamed:
             os.rename(pfile_orig, pfile)
 
-    text, is_present, _ = _read(pfile)
+    text, is_present, _ = _read(args, pfile)
     if verbose:
         print("new status:", "ENABLED" if is_present else "DISABLED")
 
@@ -363,9 +366,17 @@ def manage_condarc(args, condarc):
                 condarc.get("channel_alias", "")
             ]
             defchan = [c for c in defchan if "/" in c]
-            if defchan:
-                defchan = "/".join(defchan[0].strip().split("/", 3)[:3]) + "/"
-                tokens[defchan] = args.repo_token.strip()
+            if not defchan:
+                if args.verbose:
+                    print("------------------------")
+                error(
+                    "A repo_token value may only be supplied if accompanied\n"
+                    "by a channel_alias or default_channels value.",
+                    fatal=True,
+                    traceback=False,
+                )
+            defchan = "/".join(defchan[0].strip().split("/", 3)[:3]) + "/"
+            tokens[defchan] = args.repo_token.strip()
         _set_or_delete(condarc, "repo_tokens", tokens)
         _print_tokens("new", args, condarc)
     _set_or_delete(condarc, "add_anaconda_token", bool(condarc.get("repo_tokens")))
@@ -403,33 +414,34 @@ def write_binstar(args, condarc):
     new_tokens = condarc.get("repo_tokens")
     if not new_tokens:
         if args.verbose:
-            print('no tokens to write')
+            print("no tokens to write")
         return
     from conda.gateways import anaconda_client as a_client
+
     token_dir = a_client._get_binstar_token_directory()
     for url, token in new_tokens.items():
         fname = a_client.quote_plus(url) + ".token"
         fpath = join(token_dir, fname)
         if exists(fpath):
             if args.verbose:
-                print('token already installed:', url)
+                print("token already installed:", url)
             continue
         t_success = False
         try:
             if args.verbose:
-                print('installing token:', url)
+                print("installing token:", url)
             fdir = dirname(fpath)
             os.makedirs(fdir, exist_ok=True)
-            os.chmod(fdir, os.stat(fdir).st_mode|stat.S_IWRITE)
+            os.chmod(fdir, os.stat(fdir).st_mode | stat.S_IWRITE)
             if exists(fpath):
-                os.chmod(fpath, os.stat(fpath).st_mode|stat.S_IWRITE)
-            with open(fpath, 'w') as fp:
+                os.chmod(fpath, os.stat(fpath).st_mode | stat.S_IWRITE)
+            with open(fpath, "w") as fp:
                 fp.write(token)
             t_success = True
-            os.chmod(fpath, os.stat(fpath).st_mode&~stat.S_IWRITE)
+            os.chmod(fpath, os.stat(fpath).st_mode & ~stat.S_IWRITE)
         except Exception:
             if not t_success:
-                error('token installation failed')
+                error("token installation failed")
 
 
 def main():
