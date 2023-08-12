@@ -77,6 +77,7 @@ def parse_argv():
         action="store_true",
         help="Write the token to the standard location. This is needed for certain "
         "packages like Anaconda Navigator that do not use conda for authentication. "
+        "Existing tokens for the same location are replaced. "
         "This is most useful in an installer post-install script.",
     )
     p.add_argument(
@@ -416,23 +417,42 @@ def write_binstar(args, condarc):
         if args.verbose:
             print("no tokens to write")
         return
+
     from conda.gateways import anaconda_client as a_client
 
     token_dir = a_client._get_binstar_token_directory()
+    try:
+        os.makedirs(token_dir, exist_ok=True)
+        os.chmod(token_dir, os.stat(token_dir).st_mode | stat.S_IWRITE)
+    except Exception as exc:
+        error("error creating token directory: %s" % exc)
+        return
+
+    old_tokens = os.listdir(token_dir)
     for url, token in new_tokens.items():
+        if args.verbose:
+            print("installing token:", url)
+        for fname in list(old_tokens):
+            # Remove old tokens that can potentially conflict
+            # with this one. It is not enough to exactly match
+            # the filename, a prefix match of the URL is needed
+            if not fname.endswith(".token"):
+                continue
+            old_url = a_client.unquote_plus(fname[:-6])
+            if not old_url.startswith(url):
+                continue
+            print("removing existing token:", old_url)
+            old_tokens.remove(fname)
+            fpath = join(token_dir, fname)
+            try:
+                os.chmod(fpath, os.stat(fpath).st_mode | stat.S_IWRITE)
+                os.unlink(fpath)
+            except Exception:
+                error("error removing old token")
         fname = a_client.quote_plus(url) + ".token"
         fpath = join(token_dir, fname)
-        if exists(fpath):
-            if args.verbose:
-                print("token already installed:", url)
-            continue
         t_success = False
         try:
-            if args.verbose:
-                print("installing token:", url)
-            fdir = dirname(fpath)
-            os.makedirs(fdir, exist_ok=True)
-            os.chmod(fdir, os.stat(fdir).st_mode | stat.S_IWRITE)
             if exists(fpath):
                 os.chmod(fpath, os.stat(fpath).st_mode | stat.S_IWRITE)
             with open(fpath, "w") as fp:
