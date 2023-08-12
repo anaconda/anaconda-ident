@@ -449,6 +449,14 @@ def write_binstar(args, condarc):
                 os.unlink(fpath)
             except Exception:
                 error("error removing old token")
+        # Normalize the URL written to binstar.
+        # 1. Make sure it has a trailing slash
+        # 2. Use the full repo endpoint for Anaconda Pro
+        # This reduces potential conflicts between anaconda-ident,
+        # navigator, and conda-token
+        url = url.rstrip("/") + "/"
+        if url == "https://repo.anaconda.cloud/":
+            url += "repo/"
         fname = a_client.quote_plus(url) + ".token"
         fpath = join(token_dir, fname)
         t_success = False

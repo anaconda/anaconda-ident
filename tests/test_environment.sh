@@ -74,7 +74,7 @@ else
 fi
 
 echo -n "binstar token ... "
-binstar_token=$($T_PYTHON -c 'from binstar_client.utils.config import load_token;print(load_token("https://repo.anaconda.cloud/"))')
+binstar_token=$($T_PYTHON -c 'from binstar_client.utils.config import load_token;print(load_token("https://repo.anaconda.cloud/repo/"))')
 if [ "$binstar_token" = "$repo_token" ]; then
   echo "yes"
 else
