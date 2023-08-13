@@ -147,16 +147,28 @@ context.__init__ = _new_init
 # anaconda_ident p2
 """
 
+BS_PATCH_TEXT = b"""
+# anaconda_ident p2
+try:
+    import anaconda_ident.patch_binstar
+except Exception as exc:
+    print("Error loading anaconda_ident:", exc)
+    if os.environ.get('ANACONDA_IDENT_DEBUG'):
+        raise
+# anaconda_ident p2
+"""
+
 
 def manage_patch(args):
     verbose = args.verbose or args.status
 
     sp_dir = sysconfig.get_paths()["purelib"]
     pfile = join(sp_dir, "conda", "base", "context.py")
+    bfile = join(sp_dir, "binstar_client", "utils", "config.py")
 
-    def _read(args, pfile):
-        global PATCH_TEXT
-        global OLD_PATCH_TEXT
+    def _read(args, pfile, patch_text):
+        if not exists(pfile):
+            return None, False, False
         try:
             with open(pfile, "rb") as fp:
                 text = fp.read()
@@ -165,92 +177,101 @@ def manage_patch(args):
                 error("anaconda_ident installation failed", fatal=True)
             text = b""
         wineol = b"\r\n" in text
-        if wineol != (b"\r\n" in PATCH_TEXT):
+        if wineol != (b"\r\n" in patch_text):
             args = (b"\n", b"\r\n") if wineol else (b"\r\n", b"\n")
-            PATCH_TEXT = PATCH_TEXT.replace(*args)
-            OLD_PATCH_TEXT = OLD_PATCH_TEXT.replace(*args)
-        is_present = text.endswith(PATCH_TEXT)
+            patch_text = patch_text.replace(*args)
+        is_present = text.endswith(patch_text)
         need_update = not is_present and b"anaconda_ident" in text
         return text, is_present, need_update
 
-    text, is_present, need_update = _read(args, pfile)
     if verbose:
         print("conda prefix:", sys.prefix)
-        print("patch target:", relpath(pfile, sys.prefix))
-        if is_present:
-            status = "ENABLED"
-        elif need_update:
-            status = "OUT OF DATE"
-        else:
-            status = "DISABLED"
-        print("current status:", status)
 
-    enable = args.enable or args.verify
-    disable = args.disable or args.clean
-
-    need_change = enable and not is_present or disable and is_present or need_update
-    if not need_change:
-        if verbose and (enable or disable):
-            print("no patchwork needed")
-        return
-    elif text is None:
-        if verbose and not args.status:
-            print("nothing to patch")
-        return
-
-    if verbose:
-        if enable:
-            status = "applying"
-        elif disable:
-            status = "reverting"
-        elif need_update:
-            status = "updating"
-        print(status, "patch...")
-    renamed = False
-    try:
-        if is_present:
-            text = text.replace(PATCH_TEXT, b"")
-        if need_update:
-            if text.endswith(OLD_PATCH_TEXT):
-                text = text[: -len(OLD_PATCH_TEXT)]
-            elif b"# anaconda_ident " in text:
-                text = text[: text.find(b"# anaconda_ident p")]
+    def _patch(args, what, pfile, patch_text, old_patch_text, safety_len):
+        if verbose:
+            print(f"{what} patch target: {relpath(pfile, sys.prefix)}")
+        text, is_present, need_update = _read(args, pfile, patch_text)
+        if verbose:
+            if text is None:
+                status = "nothing to patch"
+            elif is_present:
+                status = "ENABLED"
+            elif need_update:
+                status = "OUT OF DATE"
             else:
-                error(
-                    "unexpected error patching conda. please reinstall conda",
-                    fatal=True,
-                )
-        # safety valve
-        if len(text) < 70000:
-            error("unexpected error patching conda, no changes made", fatal=True)
-        # We do not append to the original file because this is
-        # likely a hard link into the package cache, so doing so
-        # would lead to conda flagging package corruption.
-        with open(pfile + ".new", "wb") as fp:
-            fp.write(text)
-            if not is_present:
-                fp.write(PATCH_TEXT)
-        pfile_orig = pfile + ".orig"
-        if exists(pfile_orig):
-            os.unlink(pfile_orig)
-        os.rename(pfile, pfile_orig)
-        renamed = True
-        os.rename(pfile + ".new", pfile)
-        is_present = not is_present
-    except Exception:
-        if need_update:
-            what = "updating"
-        elif is_present:
-            what = "deactivation"
-        else:
-            what = "activation"
-        error("%s failed" % what)
-        if renamed:
-            os.rename(pfile_orig, pfile)
+                status = "DISABLED"
+            print(f"curent {what} status:", status)
+        if text is None:
+            return
+        enable = args.enable or args.verify
+        disable = args.disable or args.clean
+        need_change = enable and not is_present or disable and is_present or need_update
+        if not need_change:
+            if verbose and (enable or disable):
+                print(f"no {what} patchwork needed")
+            return
+        if verbose:
+            if enable:
+                status = "applying"
+            elif disable:
+                status = "reverting"
+            elif need_update:
+                status = "updating"
+            print(status, what, "patch...")
+        renamed = False
+        try:
+            if is_present:
+                text = text.replace(patch_text, b"")
+            if need_update:
+                if old_patch_text and text.endswith(old_patch_text):
+                    text = text[: -len(old_patch_text)]
+                elif b"# anaconda_ident " in text:
+                    text = text[: text.find(b"# anaconda_ident p")]
+                else:
+                    error(
+                        f"unexpected error patching {what}. please reinstall {what}",
+                        fatal=True,
+                    )
+            # safety valve
+            if len(text) < safety_len:
+                error(f"unexpected error patching {what}, no changes made", fatal=True)
+            # We do not append to the original file because this is
+            # likely a hard link into the package cache, so doing so
+            # would lead to conda flagging package corruption.
+            with open(pfile + ".new", "wb") as fp:
+                fp.write(text)
+                if not is_present:
+                    fp.write(patch_text)
+            pfile_orig = pfile + ".orig"
+            if exists(pfile_orig):
+                os.unlink(pfile_orig)
+            os.rename(pfile, pfile_orig)
+            renamed = True
+            os.rename(pfile + ".new", pfile)
+            is_present = not is_present
+        except Exception:
+            if need_update:
+                what = "updating"
+            elif is_present:
+                what = "deactivation"
+            else:
+                what = "activation"
+            error("%s failed" % what)
+            if renamed:
+                os.rename(pfile_orig, pfile)
 
-    text, is_present, _ = _read(args, pfile)
+    _patch(args, "conda", pfile, PATCH_TEXT, OLD_PATCH_TEXT, 70000)
+    text, is_present, _ = _read(args, pfile, PATCH_TEXT)
     if verbose:
-        print("new status:", "ENABLED" if is_present else "DISABLED")
+        print("new conda status:", "ENABLED" if is_present else "DISABLED")
+
+    if exists(bfile):
+        _patch(args, "anaconda-client", bfile, BS_PATCH_TEXT, None, 9000)
+        text, is_present, _ = _read(args, bfile, BS_PATCH_TEXT)
+        if verbose:
+            print(
+                "new anaconda-client status:", "ENABLED" if is_present else "DISABLED"
+            )
 
 
 __yaml = None
