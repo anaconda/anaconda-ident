@@ -3,16 +3,15 @@ _baked_tokens = None
 
 def get_baked_tokens():
     global _baked_tokens
-    if _baked_tokens is not None:
-        return _baked_tokens
-    try:
-        from conda.base.context import context
+    if _baked_tokens is None:
+        try:
+            from conda.base.context import context
 
-        if not hasattr(context, "repo_tokens"):
-            context.__init__()
-        _baked_tokens = context.repo_tokens
-    except Exception:
-        _baked_tokens = {}
+            if not hasattr(context, "repo_tokens"):
+                context.__init__()
+            _baked_tokens = context.repo_tokens
+        except Exception:
+            _baked_tokens = {}
     return _baked_tokens
 
 

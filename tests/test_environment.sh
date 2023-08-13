@@ -58,7 +58,7 @@ else
 fi
 
 echo -n "enabled ... "
-cnt=$(anaconda-ident --status | grep "^. status: ENABLED" | wc -l)
+cnt=$(echo "$status" | grep "^. status: ENABLED" | wc -l)
 if [ $cnt == 3 ]; then
   echo "yes"
 else
