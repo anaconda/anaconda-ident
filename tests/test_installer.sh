@@ -33,10 +33,13 @@ post_install: post_install.bat # [win]
 post_install: post_install.sh # [not win]
 specs:
   - anaconda-ident-config
-  - anaconda-navigator
   - anaconda-client
   - conda${vflag:-}
 EOD
+if [ ${vflag:2:2} -gt 22 ]; then
+  # Install navigator only for conda 23.x
+  echo "  - anaconda-navigator" >> construct.yaml
+fi
 
 cat >post_install.sh <<EOD
 \${PREFIX}/bin/python -m anaconda_ident.install --enable

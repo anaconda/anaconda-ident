@@ -84,23 +84,27 @@ else
   success=no
 fi
 
-echo -n "token in binstar ... "
-url=https://repo.anaconda.cloud/repo/
-binstar_token=$($T_PYTHON -c 'from binstar_client.utils.config import load_token;print(load_token("'$url'"))')
-if [ "$binstar_token" = "$repo_token" ]; then
-  echo "yes"
-else
-  echo "NO: $binstar_token"
-  success=no
+if conda list | grep -q ^anaconda-client; then
+  echo -n "token in binstar ... "
+  url=https://repo.anaconda.cloud/repo/
+  binstar_token=$($T_PYTHON -c 'from binstar_client.utils.config import load_token;print(load_token("'$url'"))')
+  if [ "$binstar_token" = "$repo_token" ]; then
+    echo "yes"
+  else
+    echo "NO: $binstar_token"
+    success=no
+  fi
 fi
 
-echo -n "token in navigator ... "
-nav_token=$($T_PYTHON -c 'from anaconda_navigator.widgets.main_window.account_components import token_list;print(token_list().get("'$url'"))')
-if [ "$nav_token" = "$repo_token" ]; then
-  echo "yes"
-else
-  echo "NO: $nav_token"
-  success=no
+if conda list | grep -q ^anaconda-navigator; then
+  echo -n "token in navigator ... "
+  nav_token=$($T_PYTHON -c 'from anaconda_navigator.widgets.main_window.account_components import token_list;print(token_list().get("'$url'"))')
+  if [ "$nav_token" = "$repo_token" ]; then
+    echo "yes"
+  else
+    echo "NO: $nav_token"
+    success=no
+  fi
 fi
 
 echo -n "user agent ... "
