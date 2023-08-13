@@ -58,7 +58,7 @@ else
 fi
 
 echo -n "enabled ... "
-if echo "$status" | grep -xq "current status: ENABLED"; then
+if echo "$status" | grep -xq "current conda status: ENABLED"; then
   echo "yes"
 else
   echo "NO"

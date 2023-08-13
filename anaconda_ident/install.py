@@ -147,42 +147,88 @@ context.__init__ = _new_init
 # anaconda_ident p2
 """
 
-BS_PATCH_TEXT = b"""
-# anaconda_ident p2
+AC_PATCH_TEXT = b"""
+# anaconda_ident p3
 try:
-    import anaconda_ident.patch_binstar
+    from anaconda_ident.tokens import include_baked_tokens
+    _old_read_binstar_tokens = read_binstar_tokens
+    def read_binstar_tokens():
+        tokens = _old_read_binstar_tokens()
+        include_baked_tokens(tokens)
+        return tokens
 except Exception as exc:
     print("Error loading anaconda_ident:", exc)
     if os.environ.get('ANACONDA_IDENT_DEBUG'):
         raise
-# anaconda_ident p2
+# anaconda_ident p3
+"""
+
+BS_PATCH_TEXT = b"""
+# anaconda_ident p3
+try:
+    from anaconda_ident.tokens import load_baked_token
+    _old_load_token = load_token
+    def load_token(url):
+        return _old_load_token(url) or load_baked_token(url)
+except Exception as exc:
+    print("Error loading anaconda_ident:", exc)
+    if os.environ.get('ANACONDA_IDENT_DEBUG'):
+        raise
+# anaconda_ident p3
 """
 
 
+def _eolmatch(text, ptext):
+    wineol = b"\r\n" in text
+    if wineol != (b"\r\n" in ptext):
+        args = (b"\n", b"\r\n") if wineol else (b"\r\n", b"\n")
+        ptext = ptext.replace(*args)
+    return ptext
+
+
+def _read(args, pfile, patch_text):
+    if not exists(pfile):
+        return None, "NOT PRESENT"
+    with open(pfile, "rb") as fp:
+        text = fp.read()
+    patch_text = _eolmatch(text, patch_text)
+    if text.endswith(patch_text):
+        status = "ENABLED"
+    elif b"anaconda_ident" in text:
+        status = "NEEDS UPDATE"
+    else:
+        status = "DISABLED"
+    return text, status
+
+
+def _strip(text, patch_text, old_patch_text):
+    found = False
+    patch_text = _eolmatch(text, patch_text)
+    if text.endswith(patch_text):
+        text = text[: -len(patch_text)]
+        found = True
+    if old_patch_text:
+        old_patch_text = _eolmatch(text, old_patch_text)
+        if text.endswith(old_patch_text):
+            text = text[: -len(old_patch_text)]
+            found = True
+    if not found and b"# anaconda_ident " in text:
+        text = text[: text.find(b"# anaconda_ident p")]
+    return text
+
+
 def manage_patch(args):
+    global OLD_PATCH_TEXT
+    global PATCH_TEXT
+    global AC_PATCH_TEXT
+    global BS_PATCH_TEXT
+
     verbose = args.verbose or args.status
 
     sp_dir = sysconfig.get_paths()["purelib"]
     pfile = join(sp_dir, "conda", "base", "context.py")
+    afile = join(sp_dir, "conda", "gateways", "anaconda_client.py")
     bfile = join(sp_dir, "binstar_client", "utils", "config.py")
-
-    def _read(args, pfile, patch_text):
-        if not exists(pfile):
-            return None, False, False
-        try:
-            with open(pfile, "rb") as fp:
-                text = fp.read()
-        except Exception:
-            if args and not args.ignore_missing:
-                error("anaconda_ident installation failed", fatal=True)
-            text = b""
-        wineol = b"\r\n" in text
-        if wineol != (b"\r\n" in patch_text):
-            args = (b"\n", b"\r\n") if wineol else (b"\r\n", b"\n")
-            patch_text = patch_text.replace(*args)
-        is_present = text.endswith(patch_text)
-        need_update = not is_present and b"anaconda_ident" in text
-        return text, is_present, need_update
 
     if verbose:
         print("conda prefix:", sys.prefix)
@@ -190,48 +236,33 @@ def manage_patch(args):
     def _patch(args, what, pfile, patch_text, old_patch_text, safety_len):
         if verbose:
             print(f"{what} patch target: {relpath(pfile, sys.prefix)}")
-        text, is_present, need_update = _read(args, pfile, patch_text)
+        text, status = _read(args, pfile, patch_text)
         if verbose:
-            if text is None:
-                status = "nothing to patch"
-            elif is_present:
-                status = "ENABLED"
-            elif need_update:
-                status = "OUT OF DATE"
-            else:
-                status = "DISABLED"
-            print(f"curent {what} status:", status)
-        if text is None:
+            print(f"current {what} status: {status}")
+        if status == "NOT PRESENT":
             return
         enable = args.enable or args.verify
         disable = args.disable or args.clean
-        need_change = enable and not is_present or disable and is_present or need_update
+        if status == "NEEDS UPDATE":
+            need_change = True
+            status = "updating"
+        elif enable:
+            need_change = status == "DISABLED"
+            status = "applying"
+        elif disable:
+            need_change = status == "ENABLED"
+            status = "reverting"
+        else:
+            need_change = False
         if not need_change:
             if verbose and (enable or disable):
                 print(f"no {what} patchwork needed")
             return
         if verbose:
-            if enable:
-                status = "applying"
-            elif disable:
-                status = "reverting"
-            elif need_update:
-                status = "updating"
-            print(status, what, "patch...")
+            print(f"{status} {what} patch...")
         renamed = False
         try:
-            if is_present:
-                text = text.replace(patch_text, b"")
-            if need_update:
-                if old_patch_text and text.endswith(old_patch_text):
-                    text = text[: -len(old_patch_text)]
-                elif b"# anaconda_ident " in text:
-                    text = text[: text.find(b"# anaconda_ident p")]
-                else:
-                    error(
-                        f"unexpected error patching {what}. please reinstall {what}",
-                        fatal=True,
-                    )
+            text = _strip(text, patch_text, old_patch_text)
             # safety valve
             if len(text) < safety_len:
                 error(f"unexpected error patching {what}, no changes made", fatal=True)
@@ -240,7 +271,7 @@ def manage_patch(args):
             # would lead to conda flagging package corruption.
             with open(pfile + ".new", "wb") as fp:
                 fp.write(text)
-                if not is_present:
+                if status != "reverting":
                     fp.write(patch_text)
             pfile_orig = pfile + ".orig"
             if exists(pfile_orig):
@@ -248,30 +279,17 @@ def manage_patch(args):
             os.rename(pfile, pfile_orig)
             renamed = True
             os.rename(pfile + ".new", pfile)
-            is_present = not is_present
-        except Exception:
-            if need_update:
-                what = "updating"
-            elif is_present:
-                what = "deactivation"
-            else:
-                what = "activation"
-            error("%s failed" % what)
+        except Exception as exc:
+            print(f"{status} {what} patch failed: {exc}")
             if renamed:
                 os.rename(pfile_orig, pfile)
+        text, status = _read(args, pfile, patch_text)
+        if verbose:
+            print(f"new {what} status: {status}")
 
     _patch(args, "conda", pfile, PATCH_TEXT, OLD_PATCH_TEXT, 70000)
-    text, is_present, _ = _read(args, pfile, PATCH_TEXT)
-    if verbose:
-        print("new conda status:", "ENABLED" if is_present else "DISABLED")
-
-    if exists(bfile):
-        _patch(args, "anaconda-client", bfile, BS_PATCH_TEXT, None, 9000)
-        text, is_present, _ = _read(args, bfile, BS_PATCH_TEXT)
-        if verbose:
-            print(
-                "new anaconda-client status:", "ENABLED" if is_present else "DISABLED"
-            )
+    _patch(args, "c.g.anaconda_client", afile, AC_PATCH_TEXT, None, 2000)
+    _patch(args, "binstar_client", bfile, BS_PATCH_TEXT, None, 9000)
 
 
 __yaml = None

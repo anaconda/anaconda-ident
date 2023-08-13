@@ -14,7 +14,6 @@ from conda.base.context import (
     PrimitiveParameter,
     MapParameter,
 )
-from conda.gateways.connection import session as c_session
 from conda.gateways.connection.session import CondaHttpAuth
 from conda.gateways import anaconda_client as a_client
 from conda.auxlib.decorators import memoize, memoizedproperty
@@ -204,19 +203,6 @@ def _new_check_prefix(prefix, json=False):
     cli_install._old_check_prefix(prefix, json)
 
 
-def _new_read_binstar_tokens():
-    tokens = a_client._old_read_binstar_tokens()
-    n_tokens, _ = get_config_value("repo_tokens")
-    for k, v in (n_tokens or {}).items():
-        # Tokens saved on disk take priority
-        for k2, v2 in tokens.items():
-            if k2.startswith(k) and v2:
-                break
-        else:
-            tokens[k] = v
-    return tokens
-
-
 if DEBUG:
     print("CONDA_IDENT DEBUGGING ENABLED")
 
@@ -253,14 +239,6 @@ if not hasattr(cli_install, "_old_check_prefix"):
     cli_install._old_check_prefix = cli_install.check_prefix
     cli_install.check_prefix = _new_check_prefix
     context.checked_prefix = None
-
-# conda.gateways.anaconda_client.read_binstar_tokens
-# conda.gateways.connection.session.read_binstar_tokens
-# Inserts hardcoded repo tokens
-if not hasattr(a_client, "_old_read_binstar_tokens"):
-    a_client._old_read_binstar_tokens = a_client.read_binstar_tokens
-    a_client.read_binstar_tokens = _new_read_binstar_tokens
-    c_session.read_binstar_tokens = _new_read_binstar_tokens
 
 # conda.base.context.Context
 # Adds anaconda_ident as a managed string config parameter
