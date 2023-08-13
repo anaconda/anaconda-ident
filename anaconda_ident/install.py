@@ -432,8 +432,6 @@ def write_binstar(args, condarc):
     for url, token in new_tokens.items():
         # Make sure all tokens have a trailing slash
         url = url.rstrip("/") + "/"
-        if args.verbose:
-            print("installing token:", url)
         for fname in list(old_tokens):
             # Remove old tokens that can potentially conflict
             # with this one. It is not enough to exactly match
@@ -451,6 +449,8 @@ def write_binstar(args, condarc):
                 os.unlink(fpath)
             except Exception:
                 error("error removing old token")
+        if args.verbose:
+            print("installing token:", url)
         # For the special case repo.anaconda.cloud, save the
         # token with the "repo/" URL path. This reduces conflicts
         # with navigator and conda-token
