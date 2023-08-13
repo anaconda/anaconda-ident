@@ -65,7 +65,7 @@ else
   success=no
 fi
 
-echo -n "repo token ... "
+echo -n "token in status ... "
 if echo "$status" | grep -q "[:] ${repo_token:0:6}"; then
   echo "yes"
 else
@@ -73,8 +73,19 @@ else
   success=no
 fi
 
-echo -n "binstar token ... "
-binstar_token=$($T_PYTHON -c 'from binstar_client.utils.config import load_token;print(load_token("https://repo.anaconda.cloud/"))')
+echo -n "token in conda ..."
+url=https://repo.anaconda.cloud/repo/main/linux-64/repodata.json
+conda_token=$($T_PYTHON -c 'from conda.gateways.connection.session import CondaHttpAuth;print(CondaHttpAuth.add_binstar_token("'$url'"))')
+if echo "$conda_token" | grep -q "/t/$repo_token/"; then
+  echo "yes"
+else
+  echo "NO: $conda_token"
+  success=no
+fi
+
+echo -n "token in binstar ... "
+url=https://repo.anaconda.cloud/repo/
+binstar_token=$($T_PYTHON -c 'from binstar_client.utils.config import load_token;print(load_token("'$url'"))')
 if [ "$binstar_token" = "$repo_token" ]; then
   echo "yes"
 else
