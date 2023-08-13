@@ -42,11 +42,11 @@ if [ ${vflag:2:2} -gt 22 ]; then
 fi
 
 cat >post_install.sh <<EOD
-\${PREFIX}/bin/python -m anaconda_ident.install --enable
+\${PREFIX}/bin/python -m anaconda_ident.install --enable --clear-old-token
 EOD
 
 cat >post_install.bat <<EOD
-%PREFIX%\\python.exe -m anaconda_ident.install --enable
+%PREFIX%\\python.exe -m anaconda_ident.install --enable --clear-old-token
 EOD
 
 echo "-----"

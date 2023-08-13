@@ -81,6 +81,15 @@ def parse_argv():
         "This is most useful in an installer post-install script.",
     )
     p.add_argument(
+        "--clear-old-token",
+        default=None,
+        action="store_true",
+        help="Clear any saved tokens written to the standard location that would "
+        "conflict with the token in the installer. This helps ensure there the "
+        "installed environment behaves as expected when replacing an older install. "
+        "This is most useful in an installer post-install script.",
+    )
+    p.add_argument(
         "--quiet",
         dest="verbose",
         action="store_false",
@@ -467,12 +476,12 @@ def write_condarc(args, fname, condarc):
             tryop(os.rename, fname + ".orig", fname)
 
 
-def write_binstar(args, condarc):
+def write_binstar(args, condarc, save=True):
     global success
     new_tokens = condarc.get("repo_tokens")
     if not new_tokens:
         if args.verbose:
-            print("no tokens to write")
+            print("no tokens to write or clear")
         return
 
     from conda.gateways import anaconda_client as a_client
@@ -507,6 +516,8 @@ def write_binstar(args, condarc):
                 os.unlink(fpath)
             except Exception:
                 error("error removing old token")
+        if not save:
+            continue
         # For the special case repo.anaconda.cloud, save the
         # token with the "repo/" URL path. This reduces conflicts
         # with navigator and conda-token
@@ -568,8 +579,8 @@ def main():
         write_condarc(args, fname, newcondarc)
     elif verbose:
         print("no changes to save")
-    if args.write_token:
-        write_binstar(args, newcondarc)
+    if args.write_token or args.clear_old_token:
+        write_binstar(args, newcondarc, save=args.write_token)
     if verbose:
         print(msg)
     return 0 if success else -1
