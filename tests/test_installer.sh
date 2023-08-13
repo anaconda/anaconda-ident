@@ -33,6 +33,7 @@ post_install: post_install.bat # [win]
 post_install: post_install.sh # [not win]
 specs:
   - anaconda-ident-config
+  - anaconda-navigator
   - anaconda-client
   - conda${vflag:-}
 EOD

@@ -94,6 +94,15 @@ else
   success=no
 fi
 
+echo -n "token in navigator ... "
+nav_token=$($T_PYTHON -c 'from anaconda_navigator.widgets.main_window.account_components import token_list;print(token_list().get("'$url'"))')
+if [ "$nav_token" = "$repo_token" ]; then
+  echo "yes"
+else
+  echo "NO: $nav_token"
+  success=no
+fi
+
 echo -n "user agent ... "
 user_agent=$($T_PYTHON -m conda info | sed -nE 's@.*user-agent : (.*)@\1@p')
 if echo "$user_agent" | grep -q o/installertest; then
