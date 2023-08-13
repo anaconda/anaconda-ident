@@ -511,7 +511,7 @@ def main():
     elif verbose:
         print("no changes to save")
     if args.write_token:
-        write_binstar(args, condarc)
+        write_binstar(args, newcondarc)
     if verbose:
         print(msg)
     return 0 if success else -1
