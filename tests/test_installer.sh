@@ -38,11 +38,11 @@ specs:
 EOD
 
 cat >post_install.sh <<EOD
-\${PREFIX}/bin/python -m anaconda_ident.install --enable --quiet
+\${PREFIX}/bin/python -m anaconda_ident.install --enable
 EOD
 
 cat >post_install.bat <<EOD
-%PREFIX%\\python.exe -m anaconda_ident.install --enable --quiet
+%PREFIX%\\python.exe -m anaconda_ident.install --enable
 EOD
 
 echo "-----"

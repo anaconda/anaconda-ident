@@ -177,6 +177,15 @@ except Exception as exc:
 # anaconda_ident p3
 """
 
+__sp_dir = None
+
+
+def _sp_dir():
+    global __sp_dir
+    if __sp_dir is None:
+        __sp_dir = sysconfig.get_paths()["purelib"]
+    return __sp_dir
+
 
 def _eolmatch(text, ptext):
     wineol = b"\r\n" in text
@@ -217,79 +226,88 @@ def _strip(text, patch_text, old_patch_text):
     return text
 
 
-def manage_patch(args):
+def _patch(args, pfile, patch_text, old_patch_text, safety_len):
+    verbose = args.verbose or args.status
+    if verbose:
+        print(f"patch target: ...{relpath(pfile, _sp_dir())}")
+    text, status = _read(args, pfile, patch_text)
+    if verbose:
+        print(f"| status: {status}")
+    if status == "NOT PRESENT":
+        return
+    enable = args.enable or args.verify
+    disable = args.disable or args.clean
+    if status == "NEEDS UPDATE":
+        need_change = True
+        status = "updating"
+    elif enable:
+        need_change = status == "DISABLED"
+        status = "applying"
+    elif disable:
+        need_change = status == "ENABLED"
+        status = "reverting"
+    else:
+        need_change = False
+    if not need_change:
+        return
+    if verbose:
+        print(f"| {status} patch...", end="")
+    renamed = False
+    try:
+        text = _strip(text, patch_text, old_patch_text)
+        # safety valve
+        if len(text) < safety_len:
+            print("safety check failed")
+            error("! unexpected error, no changes made", fatal=True)
+        # We do not append to the original file because this is
+        # likely a hard link into the package cache, so doing so
+        # would lead to conda flagging package corruption.
+        with open(pfile + ".new", "wb") as fp:
+            fp.write(text)
+            if status != "reverting":
+                fp.write(patch_text)
+        pfile_orig = pfile + ".orig"
+        if exists(pfile_orig):
+            os.unlink(pfile_orig)
+        os.rename(pfile, pfile_orig)
+        renamed = True
+        os.rename(pfile + ".new", pfile)
+        print("success")
+    except Exception as exc:
+        print(f"failed: {exc}")
+        if renamed:
+            os.rename(pfile_orig, pfile)
+    text, status = _read(args, pfile, patch_text)
+    if verbose:
+        print(f"| new status: {status}")
+
+
+def _patch_conda_context(args, verbose):
     global OLD_PATCH_TEXT
     global PATCH_TEXT
+    pfile = join(_sp_dir(), "conda", "base", "context.py")
+    _patch(args, pfile, PATCH_TEXT, OLD_PATCH_TEXT, 70000)
+
+
+def _patch_anaconda_client(args, verbose):
     global AC_PATCH_TEXT
+    afile = join(_sp_dir(), "conda", "gateways", "anaconda_client.py")
+    _patch(args, afile, AC_PATCH_TEXT, None, 2000)
+
+
+def _patch_binstar_client(args, verbose):
     global BS_PATCH_TEXT
+    bfile = join(_sp_dir(), "binstar_client", "utils", "config.py")
+    _patch(args, bfile, BS_PATCH_TEXT, None, 9000)
 
+
+def manage_patch(args):
     verbose = args.verbose or args.status
-
-    sp_dir = sysconfig.get_paths()["purelib"]
-    pfile = join(sp_dir, "conda", "base", "context.py")
-    afile = join(sp_dir, "conda", "gateways", "anaconda_client.py")
-    bfile = join(sp_dir, "binstar_client", "utils", "config.py")
-
     if verbose:
         print("conda prefix:", sys.prefix)
-
-    def _patch(args, what, pfile, patch_text, old_patch_text, safety_len):
-        if verbose:
-            print(f"{what} patch target: {relpath(pfile, sys.prefix)}")
-        text, status = _read(args, pfile, patch_text)
-        if verbose:
-            print(f"current {what} status: {status}")
-        if status == "NOT PRESENT":
-            return
-        enable = args.enable or args.verify
-        disable = args.disable or args.clean
-        if status == "NEEDS UPDATE":
-            need_change = True
-            status = "updating"
-        elif enable:
-            need_change = status == "DISABLED"
-            status = "applying"
-        elif disable:
-            need_change = status == "ENABLED"
-            status = "reverting"
-        else:
-            need_change = False
-        if not need_change:
-            if verbose and (enable or disable):
-                print(f"no {what} patchwork needed")
-            return
-        if verbose:
-            print(f"{status} {what} patch...")
-        renamed = False
-        try:
-            text = _strip(text, patch_text, old_patch_text)
-            # safety valve
-            if len(text) < safety_len:
-                error(f"unexpected error patching {what}, no changes made", fatal=True)
-            # We do not append to the original file because this is
-            # likely a hard link into the package cache, so doing so
-            # would lead to conda flagging package corruption.
-            with open(pfile + ".new", "wb") as fp:
-                fp.write(text)
-                if status != "reverting":
-                    fp.write(patch_text)
-            pfile_orig = pfile + ".orig"
-            if exists(pfile_orig):
-                os.unlink(pfile_orig)
-            os.rename(pfile, pfile_orig)
-            renamed = True
-            os.rename(pfile + ".new", pfile)
-        except Exception as exc:
-            print(f"{status} {what} patch failed: {exc}")
-            if renamed:
-                os.rename(pfile_orig, pfile)
-        text, status = _read(args, pfile, patch_text)
-        if verbose:
-            print(f"new {what} status: {status}")
-
-    _patch(args, "conda", pfile, PATCH_TEXT, OLD_PATCH_TEXT, 70000)
-    _patch(args, "c.g.anaconda_client", afile, AC_PATCH_TEXT, None, 2000)
-    _patch(args, "binstar_client", bfile, BS_PATCH_TEXT, None, 9000)
+    _patch_conda_context(args, verbose)
+    _patch_anaconda_client(args, verbose)
+    _patch_binstar_client(args, verbose)
 
 
 __yaml = None
@@ -369,10 +387,10 @@ def read_condarc(args, fname):
     except Exception:
         error("config load failed")
     if verbose:
-        _print_config("current", args, condarc)
-        _print_default_channels("current", args, condarc)
-        _print_channel_alias("current", args, condarc)
-        _print_tokens("current", args, condarc)
+        _print_config("|", args, condarc)
+        _print_default_channels("|", args, condarc)
+        _print_channel_alias("|", args, condarc)
+        _print_tokens("|", args, condarc)
     return condarc
 
 

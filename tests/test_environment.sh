@@ -58,7 +58,8 @@ else
 fi
 
 echo -n "enabled ... "
-if echo "$status" | grep -xq "current conda status: ENABLED"; then
+cnt=$(anaconda-ident --status | grep "^. status: ENABLED" | wc -l)
+if [ $cnt == 3 ]; then
   echo "yes"
 else
   echo "NO"
@@ -99,6 +100,7 @@ if echo "$user_agent" | grep -q o/installertest; then
   echo "yes"
 else
   echo "NO: $user_agent"
+  success=no
 fi
 
 if [ "$success" = yes ]; then
