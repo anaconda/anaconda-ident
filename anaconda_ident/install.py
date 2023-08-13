@@ -441,7 +441,8 @@ def write_binstar(args, condarc):
             old_url = a_client.unquote_plus(fname[:-6])
             if not old_url.startswith(url):
                 continue
-            print("removing existing token:", old_url)
+            if args.verbose:
+                print("removing existing token:", old_url)
             old_tokens.remove(fname)
             fpath = join(token_dir, fname)
             try:
