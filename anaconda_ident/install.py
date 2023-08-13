@@ -449,13 +449,13 @@ def write_binstar(args, condarc):
                 os.unlink(fpath)
             except Exception:
                 error("error removing old token")
-        if args.verbose:
-            print("installing token:", url)
         # For the special case repo.anaconda.cloud, save the
         # token with the "repo/" URL path. This reduces conflicts
         # with navigator and conda-token
         if url == "https://repo.anaconda.cloud/":
             url += "repo/"
+        if args.verbose:
+            print("installing token:", url)
         fname = a_client.quote_plus(url) + ".token"
         fpath = join(token_dir, fname)
         t_success = False
