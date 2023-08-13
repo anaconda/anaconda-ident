@@ -20,8 +20,6 @@ mkdir -p $CONDA_PREFIX/conda-bld/noarch
 mv anaconda-ident-config-999-default_0.tar.bz2 $CONDA_PREFIX/conda-bld/noarch
 python -m conda_index $CONDA_PREFIX/conda-bld
 
-[ -z "$vflag" ] || vflag="==$vflag"
-
 cat >construct.yaml <<EOD
 name: AIDTest
 version: 1.0
