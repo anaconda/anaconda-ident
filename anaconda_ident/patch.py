@@ -14,9 +14,9 @@ from conda.base.context import (
     PrimitiveParameter,
     MapParameter,
 )
-from conda.gateways.connection.session import CondaHttpAuth
 from conda.auxlib.decorators import memoize, memoizedproperty
-from conda.cli import install as cli_install
+
+from wrapt import when_imported
 
 from logging import getLogger
 from os.path import join, basename, expanduser, exists
@@ -152,8 +152,6 @@ def client_token_type():
 
 @memoize
 def client_token_string():
-    if not hasattr(Context, "session_token"):
-        initialize_raw_tokens()
     parts = []
     token_type = client_token_type()
     fmt_parts = token_type.split(":", 1)
@@ -189,19 +187,6 @@ def _new_user_agent(ctx):
     return result + " " + token if token else result
 
 
-def _new_apply_basic_auth(request):
-    result = CondaHttpAuth._old_apply_basic_auth(request)
-    token = client_token_string()
-    if token:
-        request.headers["X-Anaconda-Ident"] = token
-    return result
-
-
-def _new_check_prefix(prefix, json=False):
-    context.checked_prefix = prefix
-    cli_install._old_check_prefix(prefix, json)
-
-
 if DEBUG:
     print("CONDA_IDENT DEBUGGING ENABLED")
 
@@ -225,19 +210,45 @@ if not hasattr(Context, "_old_user_agent"):
     # in sthe cache in a different place than the original
     Context.user_agent = memoizedproperty(_new_user_agent)
 
+
 # conda.gateways.connection.session.CondaHttpAuth
 # Adds the X-Conda-Ident header to all conda requests
-if not hasattr(CondaHttpAuth, "_old_apply_basic_auth"):
-    CondaHttpAuth._old_apply_basic_auth = CondaHttpAuth._apply_basic_auth
-    CondaHttpAuth._apply_basic_auth = staticmethod(_new_apply_basic_auth)
+@when_imported("conda.gateways.connection.session")
+def patch_apply_basic_auth(mod):
+    if DEBUG:
+        print(
+            "PATCHING conda.gateways.connection.session.CondaHttpAuth._apply_basic_auth"
+        )
+    cls = mod.CondaHttpAuth
+    cls._old_apply_basic_auth = cls._apply_basic_auth
+
+    def _new_apply_basic_auth(request):
+        result = cls._old_apply_basic_auth(request)
+        token = client_token_string()
+        if token:
+            request.headers["X-Anaconda-Ident"] = token
+        return result
+
+    cls._apply_basic_auth = staticmethod(_new_apply_basic_auth)
+
 
 # conda.cli.install.check_prefix
 # Collects the prefix computed there so that we can properly
 # detect the creation of environments using "conda env create"
-if not hasattr(cli_install, "_old_check_prefix"):
-    cli_install._old_check_prefix = cli_install.check_prefix
-    cli_install.check_prefix = _new_check_prefix
-    context.checked_prefix = None
+@when_imported("conda.cli.install")
+def patch_check_prefix(mod):
+    if DEBUG:
+        print("PATCHING conda.cli.install.check_prefix")
+    mod._old_check_prefix = mod.check_prefix
+
+    def _new_check_prefix(prefix, json=False):
+        context.checked_prefix = prefix
+        mod._old_check_prefix(prefix, json)
+
+    mod.check_prefix = _new_check_prefix
+
+
+Context.checked_prefix = None
 
 # conda.base.context.Context
 # Adds anaconda_ident as a managed string config parameter
@@ -265,16 +276,6 @@ if DEBUG:
     print(
         "| USER AGENT:",
         "patched" if getattr(Context, "_old_user_agent", None) else "UNPATCHED",
-    )
-    print(
-        "| CONDA_AUTH:",
-        "patched"
-        if getattr(CondaHttpAuth, "_old_apply_basic_auth", None)
-        else "UNPATCHED",
-    )
-    print(
-        "| CHECK_PREFIX:",
-        "patched" if getattr(cli_install, "_old_check_prefix", None) else "UNPATCHED",
     )
     print(
         "| ANACONDA_IDENT:",

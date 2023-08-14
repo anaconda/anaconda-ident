@@ -141,20 +141,15 @@ except Exception as exc:
 """
 
 PATCH_TEXT = b"""
-# anaconda_ident p2
-_old__init__ = context.__init__
-def _new_init(*args, **kwargs):
-    try:
-        import anaconda_ident.patch
-    except Exception as exc:
-        import os, sys
-        print("Error loading anaconda_ident:", exc, file=sys.stderr)
-        if os.environ.get('ANACONDA_IDENT_DEBUG'):
-            raise
-    context.__init__ = _old__init__
-    _old__init__(*args, **kwargs)
-context.__init__ = _new_init
-# anaconda_ident p2
+# anaconda_ident p3
+try:
+    import anaconda_ident.patch
+except Exception as exc:
+    import os, sys
+    print("Error loading anaconda_ident:", exc, file=sys.stderr)
+    if os.environ.get('ANACONDA_IDENT_DEBUG'):
+        raise
+# anaconda_ident p3
 """
 
 AC_PATCH_TEXT = b"""
