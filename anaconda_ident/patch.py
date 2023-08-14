@@ -21,6 +21,8 @@ from conda.cli import install as cli_install
 from logging import getLogger
 from os.path import join, basename, expanduser, exists
 
+from . import __version__
+
 
 log = getLogger(__name__)
 
@@ -154,7 +156,7 @@ def client_token_type():
 def client_token_string():
     if not hasattr(Context, "session_token"):
         initialize_raw_tokens()
-    parts = []
+    parts = ["ident/" + __version__]
     token_type = client_token_type()
     fmt_parts = token_type.split(":", 1)
     for code in fmt_parts[0]:
