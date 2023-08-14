@@ -15,7 +15,6 @@ from conda.base.context import (
     MapParameter,
 )
 from conda.gateways.connection.session import CondaHttpAuth
-from conda.gateways import anaconda_client as a_client
 from conda.auxlib.decorators import memoize, memoizedproperty
 from conda.cli import install as cli_install
 
@@ -276,12 +275,6 @@ if DEBUG:
     print(
         "| CHECK_PREFIX:",
         "patched" if getattr(cli_install, "_old_check_prefix", None) else "UNPATCHED",
-    )
-    print(
-        "| READ_BINSTAR_TOKENS:",
-        "patched"
-        if getattr(a_client, "_old_read_binstar_tokens", None)
-        else "UNPATCHED",
     )
     print(
         "| ANACONDA_IDENT:",
