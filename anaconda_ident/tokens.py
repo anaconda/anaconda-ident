@@ -7,7 +7,7 @@ def get_baked_tokens():
         try:
             from conda.base.context import context
 
-            if not hasattr(context, "repo_tokens"):
+            if not getattr(context, "repo_tokens", None):
                 context.__init__()
             _baked_tokens = context.repo_tokens
         except Exception:
