@@ -248,7 +248,7 @@ def _patch(args, pfile, patch_text, old_patch_text, safety_len):
     disable = args.disable or args.clean
     if status == "NEEDS UPDATE":
         need_change = True
-        status = "updating"
+        status = "reverting" if disable else "updating"
     elif enable:
         need_change = status == "DISABLED"
         status = "applying"
