@@ -20,8 +20,6 @@ mkdir -p $CONDA_PREFIX/conda-bld/noarch
 mv anaconda-ident-config-999-default_0.tar.bz2 $CONDA_PREFIX/conda-bld/noarch
 python -m conda_index $CONDA_PREFIX/conda-bld
 
-[ -z "$vflag" ] || vflag="==$vflag"
-
 cat >construct.yaml <<EOD
 name: AIDTest
 version: 1.0
@@ -36,13 +34,17 @@ specs:
   - anaconda-client
   - conda${vflag:-}
 EOD
+if [ ${vflag:2:2} -gt 22 ]; then
+  # Install navigator only for conda 23.x
+  echo "  - anaconda-navigator" >> construct.yaml
+fi
 
 cat >post_install.sh <<EOD
-\${PREFIX}/bin/python -m anaconda_ident.install --enable --write-token --quiet
+\${PREFIX}/bin/python -m anaconda_ident.install --enable --clear-old-token
 EOD
 
 cat >post_install.bat <<EOD
-%PREFIX%\\python.exe -m anaconda_ident.install --enable --write-token --quiet
+%PREFIX%\\python.exe -m anaconda_ident.install --enable --clear-old-token
 EOD
 
 echo "-----"

@@ -46,6 +46,14 @@ echo "$cinfo" | grep -vE '^ *$'
 echo "------------------------"
 
 echo
+cmd="$T_PYTHON -m conda list"
+echo "\$ $cmd"
+echo "------------------------"
+pkgs=$($cmd)
+echo "$pkgs" | grep -vE '^ *$'
+echo "------------------------"
+
+echo
 echo -n "correct prefix ... "
 test_prefix=$(echo "$status" | sed -nE 's@ *conda prefix: @@p')
 # For windows this converts the prefix to posix
@@ -58,7 +66,8 @@ else
 fi
 
 echo -n "enabled ... "
-if echo "$status" | grep -xq "current status: ENABLED"; then
+cnt=$(echo "$status" | grep "^. status: ENABLED" | wc -l)
+if [ $cnt == 3 ]; then
   echo "yes"
 else
   echo "NO"
@@ -83,22 +92,36 @@ else
   success=no
 fi
 
-echo -n "token in binstar ... "
-url=https://repo.anaconda.cloud/repo/
-binstar_token=$($T_PYTHON -c 'from binstar_client.utils.config import load_token;print(load_token("'$url'"))')
-if [ "$binstar_token" = "$repo_token" ]; then
-  echo "yes"
-else
-  echo "NO: $binstar_token"
-  success=no
+if echo "$pkgs" | grep -q ^anaconda-client; then
+  echo -n "token in binstar ... "
+  url=https://repo.anaconda.cloud/repo/
+  binstar_token=$($T_PYTHON -c 'from binstar_client.utils.config import load_token;print(load_token("'$url'"))')
+  if [ "$binstar_token" = "$repo_token" ]; then
+    echo "yes"
+  else
+    echo "NO: $binstar_token"
+    success=no
+  fi
+fi
+
+if echo "$pkgs" | grep -q ^anaconda-navigator; then
+  echo -n "token in navigator ... "
+  nav_token=$($T_PYTHON -c 'from anaconda_navigator.widgets.main_window.account_components import token_list;print(token_list().get("'$url'"))')
+  if [ "$nav_token" = "$repo_token" ]; then
+    echo "yes"
+  else
+    echo "NO: $nav_token"
+    success=no
+  fi
 fi
 
 echo -n "user agent ... "
-user_agent=$($T_PYTHON -m conda info | sed -nE 's@.*user-agent : (.*)@\1@p')
+user_agent=$(echo "$cinfo" | sed -nE 's@.*user-agent : (.*)@\1@p')
 if echo "$user_agent" | grep -q o/installertest; then
   echo "yes"
 else
   echo "NO: $user_agent"
+  success=no
 fi
 
 if [ "$success" = yes ]; then

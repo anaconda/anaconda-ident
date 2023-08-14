@@ -81,6 +81,15 @@ def parse_argv():
         "This is most useful in an installer post-install script.",
     )
     p.add_argument(
+        "--clear-old-token",
+        default=None,
+        action="store_true",
+        help="Clear any saved tokens written to the standard location that would "
+        "conflict with the token in the installer. This helps ensure there the "
+        "installed environment behaves as expected when replacing an older install. "
+        "This is most useful in an installer post-install script.",
+    )
+    p.add_argument(
         "--quiet",
         dest="verbose",
         action="store_false",
@@ -147,110 +156,167 @@ context.__init__ = _new_init
 # anaconda_ident p2
 """
 
+AC_PATCH_TEXT = b"""
+# anaconda_ident p3
+try:
+    from anaconda_ident.tokens import include_baked_tokens
+    _old_read_binstar_tokens = read_binstar_tokens
+    def read_binstar_tokens():
+        tokens = _old_read_binstar_tokens()
+        include_baked_tokens(tokens)
+        return tokens
+except Exception as exc:
+    print("Error loading anaconda_ident:", exc)
+    if os.environ.get('ANACONDA_IDENT_DEBUG'):
+        raise
+# anaconda_ident p3
+"""
 
-def manage_patch(args):
+BS_PATCH_TEXT = b"""
+# anaconda_ident p3
+try:
+    from anaconda_ident.tokens import load_baked_token
+    _old_load_token = load_token
+    def load_token(url):
+        return _old_load_token(url) or load_baked_token(url)
+except Exception as exc:
+    print("Error loading anaconda_ident:", exc)
+    if os.environ.get('ANACONDA_IDENT_DEBUG'):
+        raise
+# anaconda_ident p3
+"""
+
+__sp_dir = None
+
+
+def _sp_dir():
+    global __sp_dir
+    if __sp_dir is None:
+        __sp_dir = sysconfig.get_paths()["purelib"]
+    return __sp_dir
+
+
+def _eolmatch(text, ptext):
+    wineol = b"\r\n" in text
+    if wineol != (b"\r\n" in ptext):
+        args = (b"\n", b"\r\n") if wineol else (b"\r\n", b"\n")
+        ptext = ptext.replace(*args)
+    return ptext
+
+
+def _read(args, pfile, patch_text):
+    if not exists(pfile):
+        return None, "NOT PRESENT"
+    with open(pfile, "rb") as fp:
+        text = fp.read()
+    patch_text = _eolmatch(text, patch_text)
+    if text.endswith(patch_text):
+        status = "ENABLED"
+    elif b"anaconda_ident" in text:
+        status = "NEEDS UPDATE"
+    else:
+        status = "DISABLED"
+    return text, status
+
+
+def _strip(text, patch_text, old_patch_text):
+    found = False
+    patch_text = _eolmatch(text, patch_text)
+    if text.endswith(patch_text):
+        text = text[: -len(patch_text)]
+        found = True
+    if old_patch_text:
+        old_patch_text = _eolmatch(text, old_patch_text)
+        if text.endswith(old_patch_text):
+            text = text[: -len(old_patch_text)]
+            found = True
+    if not found and b"# anaconda_ident " in text:
+        text = text[: text.find(b"# anaconda_ident p")]
+    return text
+
+
+def _patch(args, pfile, patch_text, old_patch_text, safety_len):
     verbose = args.verbose or args.status
-
-    sp_dir = sysconfig.get_paths()["purelib"]
-    pfile = join(sp_dir, "conda", "base", "context.py")
-
-    def _read(args, pfile):
-        global PATCH_TEXT
-        global OLD_PATCH_TEXT
-        try:
-            with open(pfile, "rb") as fp:
-                text = fp.read()
-        except Exception:
-            if args and not args.ignore_missing:
-                error("anaconda_ident installation failed", fatal=True)
-            text = b""
-        wineol = b"\r\n" in text
-        if wineol != (b"\r\n" in PATCH_TEXT):
-            args = (b"\n", b"\r\n") if wineol else (b"\r\n", b"\n")
-            PATCH_TEXT = PATCH_TEXT.replace(*args)
-            OLD_PATCH_TEXT = OLD_PATCH_TEXT.replace(*args)
-        is_present = text.endswith(PATCH_TEXT)
-        need_update = not is_present and b"anaconda_ident" in text
-        return text, is_present, need_update
-
-    text, is_present, need_update = _read(args, pfile)
     if verbose:
-        print("conda prefix:", sys.prefix)
-        print("patch target:", relpath(pfile, sys.prefix))
-        if is_present:
-            status = "ENABLED"
-        elif need_update:
-            status = "OUT OF DATE"
-        else:
-            status = "DISABLED"
-        print("current status:", status)
-
+        print(f"patch target: ...{relpath(pfile, _sp_dir())}")
+    text, status = _read(args, pfile, patch_text)
+    if verbose:
+        print(f"| status: {status}")
+    if status == "NOT PRESENT":
+        return
     enable = args.enable or args.verify
     disable = args.disable or args.clean
-
-    need_change = enable and not is_present or disable and is_present or need_update
+    if status == "NEEDS UPDATE":
+        need_change = True
+        status = "updating"
+    elif enable:
+        need_change = status == "DISABLED"
+        status = "applying"
+    elif disable:
+        need_change = status == "ENABLED"
+        status = "reverting"
+    else:
+        need_change = False
     if not need_change:
-        if verbose and (enable or disable):
-            print("no patchwork needed")
         return
-    elif text is None:
-        if verbose and not args.status:
-            print("nothing to patch")
-        return
-
     if verbose:
-        if enable:
-            status = "applying"
-        elif disable:
-            status = "reverting"
-        elif need_update:
-            status = "updating"
-        print(status, "patch...")
+        print(f"| {status} patch...", end="")
     renamed = False
     try:
-        if is_present:
-            text = text.replace(PATCH_TEXT, b"")
-        if need_update:
-            if text.endswith(OLD_PATCH_TEXT):
-                text = text[: -len(OLD_PATCH_TEXT)]
-            elif b"# anaconda_ident " in text:
-                text = text[: text.find(b"# anaconda_ident p")]
-            else:
-                error(
-                    "unexpected error patching conda. please reinstall conda",
-                    fatal=True,
-                )
+        text = _strip(text, patch_text, old_patch_text)
         # safety valve
-        if len(text) < 70000:
-            error("unexpected error patching conda, no changes made", fatal=True)
+        if len(text) < safety_len:
+            print("safety check failed")
+            error("! unexpected error, no changes made", fatal=True)
         # We do not append to the original file because this is
         # likely a hard link into the package cache, so doing so
         # would lead to conda flagging package corruption.
         with open(pfile + ".new", "wb") as fp:
             fp.write(text)
-            if not is_present:
-                fp.write(PATCH_TEXT)
+            if status != "reverting":
+                fp.write(patch_text)
         pfile_orig = pfile + ".orig"
         if exists(pfile_orig):
             os.unlink(pfile_orig)
         os.rename(pfile, pfile_orig)
         renamed = True
         os.rename(pfile + ".new", pfile)
-        is_present = not is_present
-    except Exception:
-        if need_update:
-            what = "updating"
-        elif is_present:
-            what = "deactivation"
-        else:
-            what = "activation"
-        error("%s failed" % what)
+        print("success")
+    except Exception as exc:
+        print(f"failed: {exc}")
         if renamed:
             os.rename(pfile_orig, pfile)
-
-    text, is_present, _ = _read(args, pfile)
+    text, status = _read(args, pfile, patch_text)
     if verbose:
-        print("new status:", "ENABLED" if is_present else "DISABLED")
+        print(f"| new status: {status}")
+
+
+def _patch_conda_context(args, verbose):
+    global OLD_PATCH_TEXT
+    global PATCH_TEXT
+    pfile = join(_sp_dir(), "conda", "base", "context.py")
+    _patch(args, pfile, PATCH_TEXT, OLD_PATCH_TEXT, 70000)
+
+
+def _patch_anaconda_client(args, verbose):
+    global AC_PATCH_TEXT
+    afile = join(_sp_dir(), "conda", "gateways", "anaconda_client.py")
+    _patch(args, afile, AC_PATCH_TEXT, None, 2000)
+
+
+def _patch_binstar_client(args, verbose):
+    global BS_PATCH_TEXT
+    bfile = join(_sp_dir(), "binstar_client", "utils", "config.py")
+    _patch(args, bfile, BS_PATCH_TEXT, None, 9000)
+
+
+def manage_patch(args):
+    verbose = args.verbose or args.status
+    if verbose:
+        print("conda prefix:", sys.prefix)
+    _patch_conda_context(args, verbose)
+    _patch_anaconda_client(args, verbose)
+    _patch_binstar_client(args, verbose)
 
 
 __yaml = None
@@ -330,10 +396,10 @@ def read_condarc(args, fname):
     except Exception:
         error("config load failed")
     if verbose:
-        _print_config("current", args, condarc)
-        _print_default_channels("current", args, condarc)
-        _print_channel_alias("current", args, condarc)
-        _print_tokens("current", args, condarc)
+        _print_config("|", args, condarc)
+        _print_default_channels("|", args, condarc)
+        _print_channel_alias("|", args, condarc)
+        _print_tokens("|", args, condarc)
     return condarc
 
 
@@ -410,12 +476,12 @@ def write_condarc(args, fname, condarc):
             tryop(os.rename, fname + ".orig", fname)
 
 
-def write_binstar(args, condarc):
+def write_binstar(args, condarc, save=True):
     global success
     new_tokens = condarc.get("repo_tokens")
     if not new_tokens:
         if args.verbose:
-            print("no tokens to write")
+            print("no tokens to write or clear")
         return
 
     from conda.gateways import anaconda_client as a_client
@@ -450,6 +516,8 @@ def write_binstar(args, condarc):
                 os.unlink(fpath)
             except Exception:
                 error("error removing old token")
+        if not save:
+            continue
         # For the special case repo.anaconda.cloud, save the
         # token with the "repo/" URL path. This reduces conflicts
         # with navigator and conda-token
@@ -511,8 +579,8 @@ def main():
         write_condarc(args, fname, newcondarc)
     elif verbose:
         print("no changes to save")
-    if args.write_token:
-        write_binstar(args, newcondarc)
+    if args.write_token or args.clear_old_token:
+        write_binstar(args, newcondarc, save=args.write_token)
     if verbose:
         print(msg)
     return 0 if success else -1
