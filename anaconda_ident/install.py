@@ -147,7 +147,8 @@ def _new_init(*args, **kwargs):
     try:
         import anaconda_ident.patch
     except Exception as exc:
-        print("Error loading anaconda_ident:", exc)
+        import os, sys
+        print("Error loading anaconda_ident:", exc, file=sys.stderr)
         if os.environ.get('ANACONDA_IDENT_DEBUG'):
             raise
     context.__init__ = _old__init__
@@ -159,14 +160,10 @@ context.__init__ = _new_init
 AC_PATCH_TEXT = b"""
 # anaconda_ident p3
 try:
-    from anaconda_ident.tokens import include_baked_tokens
-    _old_read_binstar_tokens = read_binstar_tokens
-    def read_binstar_tokens():
-        tokens = _old_read_binstar_tokens()
-        include_baked_tokens(tokens)
-        return tokens
+    import anaconda_ident.patch_ac
 except Exception as exc:
-    print("Error loading anaconda_ident:", exc)
+    import os, sys
+    print("Error loading anaconda_ident:", exc, file=sys.stderr)
     if os.environ.get('ANACONDA_IDENT_DEBUG'):
         raise
 # anaconda_ident p3
@@ -175,12 +172,10 @@ except Exception as exc:
 BS_PATCH_TEXT = b"""
 # anaconda_ident p3
 try:
-    from anaconda_ident.tokens import load_baked_token
-    _old_load_token = load_token
-    def load_token(url):
-        return _old_load_token(url) or load_baked_token(url)
+    import anaconda_ident.patch_bc
 except Exception as exc:
-    print("Error loading anaconda_ident:", exc)
+    import os, sys
+    print("Error loading anaconda_ident:", exc, file=sys.stderr)
     if os.environ.get('ANACONDA_IDENT_DEBUG'):
         raise
 # anaconda_ident p3

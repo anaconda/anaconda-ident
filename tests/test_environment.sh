@@ -84,7 +84,7 @@ fi
 
 echo -n "token in conda ..."
 url=https://repo.anaconda.cloud/repo/main/linux-64/repodata.json
-conda_token=$($T_PYTHON -c 'from conda.gateways.connection.session import CondaHttpAuth;print(CondaHttpAuth.add_binstar_token("'$url'"))')
+conda_token=$($T_PYTHON -c 'import conda.base.context;from conda.gateways.connection.session import CondaHttpAuth;print(CondaHttpAuth.add_binstar_token("'$url'"))')
 if echo "$conda_token" | grep -q "/t/$repo_token/"; then
   echo "yes"
 else
