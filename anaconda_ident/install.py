@@ -506,6 +506,9 @@ def modify_binstar(args, condarc, save=True):
             old_tokens.remove(fname)
             fpath = join(token_dir, fname)
             try:
+                if first_token:
+                    os.chmod(token_dir, os.stat(token_dir).st_mode | stat.S_IWRITE)
+                    first_token = False
                 os.chmod(fpath, os.stat(fpath).st_mode | stat.S_IWRITE)
                 os.unlink(fpath)
             except Exception:
