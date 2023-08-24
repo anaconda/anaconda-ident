@@ -189,16 +189,14 @@ def client_token_string():
 def logged_in_token():
     try:
         from conda.gateways import anaconda_client as ac
+
+        tokens = ac.read_binstar_tokens()
+        for dom in (".anaconda.cloud/", ".anaconda.org/"):
+            for k, v in tokens.items():
+                if dom in k:
+                    return dom.rsplit(".", 1)[-1] + v
     except Exception:
-        return None
-    tokens = ac.read_binstar_tokens()
-    for k, v in tokens.items():
-        if ".anaconda.cloud/" in k:
-            return "cloud/" + v
-    else:
-        for k, v in tokens.items():
-            if ".anaconda.org/" in k:
-                return "org/" + v
+        pass
     return None
 
 
@@ -213,10 +211,9 @@ def _new_apply_basic_auth(request):
     token = client_token_string()
     if token:
         request.headers["X-Anaconda-Ident"] = token
-    if "anaconda" in request.url:
-        token = logged_in_token()
-        if token:
-            request.headers["X-Anaconda-Token"] = token
+    token = logged_in_token()
+    if token:
+        request.headers["X-Anaconda-Token"] = token
     return result
 
 

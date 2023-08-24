@@ -193,9 +193,10 @@ for flag in flags:
         header = header[0].split(": ", 1)[-1].strip() if header else ""
         assert user_agent.endswith(header), (user_agent, header)
         if token_env:
+            env_value = list(token_env.values())[-1]
             t_header = [v for v in proc.stderr.splitlines() if "X-Anaconda-Token" in v]
             t_header = t_header[0].split(": ", 1)[-1].strip() if t_header else ""
-            assert t_header.rsplit("/", 1)[-1] == token_env
+            assert t_header.rsplit("/", 1)[-1] == env_value, (t_header, token_env)
         if is_enabled:
             new_values = {token[0]: token for token in header.split(" ") if token}
             # Confirm that all of the expected tokens are present
