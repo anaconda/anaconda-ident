@@ -112,7 +112,7 @@ def parse_argv():
 success = True
 
 
-def error(what, fatal=False, traceback=True):
+def error(what, fatal=False, warn=False, traceback=True):
     global success
     print("ERROR:", what)
     if traceback:
@@ -122,7 +122,8 @@ def error(what, fatal=False, traceback=True):
     if fatal:
         print("cannot proceed; exiting.")
         sys.exit(-1)
-    success = False
+    if not warn:
+        success = False
 
 
 def tryop(op, *args, **kwargs):
@@ -471,7 +472,7 @@ def write_condarc(args, fname, condarc):
             tryop(os.rename, fname + ".orig", fname)
 
 
-def write_binstar(args, condarc, save=True):
+def modify_binstar(args, condarc, save=True):
     global success
     new_tokens = condarc.get("repo_tokens")
     if not new_tokens:
@@ -482,14 +483,13 @@ def write_binstar(args, condarc, save=True):
     from conda.gateways import anaconda_client as a_client
 
     token_dir = a_client._get_binstar_token_directory()
+    old_tokens = None
     try:
-        os.makedirs(token_dir, exist_ok=True)
-        os.chmod(token_dir, os.stat(token_dir).st_mode | stat.S_IWRITE)
-    except Exception as exc:
-        error("error creating token directory: %s" % exc)
-        return
+        old_tokens = os.listdir(token_dir)
+    except Exception:
+        pass
 
-    old_tokens = os.listdir(token_dir)
+    first_token = True
     for url, token in new_tokens.items():
         # Make sure all tokens have a trailing slash
         url = url.rstrip("/") + "/"
@@ -510,7 +510,7 @@ def write_binstar(args, condarc, save=True):
                 os.chmod(fpath, os.stat(fpath).st_mode | stat.S_IWRITE)
                 os.unlink(fpath)
             except Exception:
-                error("error removing old token")
+                error("error removing old token", warn=True)
         if not save:
             continue
         # For the special case repo.anaconda.cloud, save the
@@ -524,6 +524,10 @@ def write_binstar(args, condarc, save=True):
         fpath = join(token_dir, fname)
         t_success = False
         try:
+            if first_token:
+                first_token = False
+                os.makedirs(token_dir, exist_ok=True)
+                os.chmod(token_dir, os.stat(token_dir).st_mode | stat.S_IWRITE)
             if exists(fpath):
                 os.chmod(fpath, os.stat(fpath).st_mode | stat.S_IWRITE)
             with open(fpath, "w") as fp:
@@ -532,7 +536,7 @@ def write_binstar(args, condarc, save=True):
             os.chmod(fpath, os.stat(fpath).st_mode & ~stat.S_IWRITE)
         except Exception:
             if not t_success:
-                error("token installation failed")
+                error("token installation failed", warn=True)
 
 
 def main():
@@ -575,7 +579,7 @@ def main():
     elif verbose:
         print("no changes to save")
     if args.write_token or args.clear_old_token:
-        write_binstar(args, newcondarc, save=args.write_token)
+        modify_binstar(args, newcondarc, save=args.write_token)
     if verbose:
         print(msg)
     return 0 if success else -1
