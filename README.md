@@ -6,9 +6,12 @@ The `anaconda-ident` package reconfigures [`conda`](https://docs.conda.io/)
 to deliver a configurable amount of additional telemetry data
 when requesting indices and packages from a server. This
 data is appended to the user agent string, and delivered
-to a custom `X-Anaconda-Ident` request header.
+to a custom `X-Anaconda-Ident` request header. When making
+requests to Anaconda domains, it adds an additional header
+containing the standard conda access tokens corresponding
+to Anaconda services.
 
-In its default mode, this telemetry data is *randomly
+In its default mode, the telemetry data is *randomly
 generated* to avoid revealing personally identifiable content.
 In this mode, use cases include:
 
