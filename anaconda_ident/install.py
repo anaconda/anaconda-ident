@@ -5,6 +5,7 @@ import sys
 import os
 
 from os.path import basename, dirname, exists, join, relpath
+from traceback import format_exc
 
 
 def parse_argv():
@@ -112,12 +113,13 @@ def parse_argv():
 success = True
 
 
-def error(what, fatal=False, warn=False, traceback=True):
+def error(what, fatal=False, warn=False):
     global success
     print("ERROR:", what)
-    if traceback:
+    tb = format_exc()
+    if not tb.startswith("NoneType"):
         print("-----")
-        traceback.print_exc()
+        print(tb.rstrip())
         print("-----")
     if fatal:
         print("cannot proceed; exiting.")
@@ -330,8 +332,7 @@ def _yaml():
                 try:
                     import yaml
                 except Exception:
-                    error("failed to load yaml library")
-                    return None
+                    error("failed to load yaml library", fatal=True)
         __yaml = yaml
     return __yaml
 
@@ -436,7 +437,6 @@ def manage_condarc(args, condarc):
                     "A repo_token value may only be supplied if accompanied\n"
                     "by a channel_alias or default_channels value.",
                     fatal=True,
-                    traceback=False,
                 )
             defchan = "/".join(defchan[0].strip().split("/", 3)[:3]) + "/"
             tokens[defchan] = args.repo_token.strip()
@@ -507,7 +507,13 @@ def modify_binstar(args, condarc, save=True):
             fpath = join(token_dir, fname)
             try:
                 if first_token:
-                    os.chmod(token_dir, os.stat(token_dir).st_mode | stat.S_IWRITE)
+                    os.chmod(
+                        token_dir,
+                        os.stat(token_dir).st_mode
+                        | stat.S_IWRITE
+                        | stat.S_IREAD
+                        | stat.S_IEXEC,
+                    )
                     first_token = False
                 os.chmod(fpath, os.stat(fpath).st_mode | stat.S_IWRITE)
                 os.unlink(fpath)
@@ -529,7 +535,13 @@ def modify_binstar(args, condarc, save=True):
             if first_token:
                 first_token = False
                 os.makedirs(token_dir, exist_ok=True)
-                os.chmod(token_dir, os.stat(token_dir).st_mode | stat.S_IWRITE)
+                os.chmod(
+                    token_dir,
+                    os.stat(token_dir).st_mode
+                    | stat.S_IWRITE
+                    | stat.S_IREAD
+                    | stat.S_IEXEC,
+                )
             if exists(fpath):
                 os.chmod(fpath, os.stat(fpath).st_mode | stat.S_IWRITE)
             with open(fpath, "w") as fp:
