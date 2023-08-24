@@ -483,11 +483,10 @@ def modify_binstar(args, condarc, save=True):
     from conda.gateways import anaconda_client as a_client
 
     token_dir = a_client._get_binstar_token_directory()
-    old_tokens = None
     try:
         old_tokens = os.listdir(token_dir)
     except Exception:
-        pass
+        old_tokens = []
 
     first_token = True
     for url, token in new_tokens.items():
