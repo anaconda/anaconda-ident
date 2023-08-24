@@ -202,12 +202,12 @@ def logged_in_tokens():
         tokens = ac.read_binstar_tokens()
     except Exception:
         return
-    results = []
+    results = set()
     for k, v in tokens.items():
         t_dom = _anaconda_dom(k)
         if t_dom:
-            results.append(f"{t_dom}/{v}")
-    return ",".join(results)
+            results.add(f"{t_dom}/{v}")
+    return ", ".join(results)
 
 
 def _new_user_agent(ctx):
@@ -223,9 +223,9 @@ def _new_apply_basic_auth(request):
         request.headers["X-Anaconda-Ident"] = token
     # Accumulate all login tokens
     if _anaconda_dom(request.url):
-        token = logged_in_tokens()
-        if token:
-            request.headers["X-Anaconda-Token"] = token
+        tokens = logged_in_tokens()
+        if tokens:
+            request.headers["X-Anaconda-Token"] = tokens
     return result
 
 
