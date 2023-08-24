@@ -83,7 +83,7 @@ if token_env:
     token_env = {token_chan: token_env}
 else:
     token_env = None
-li_token = patch.logged_in_token()
+li_token = patch.logged_in_tokens()
 
 if not token_env and token_baked:
     print("Unexpected baked token set:", token_baked)

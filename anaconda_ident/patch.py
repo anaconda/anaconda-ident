@@ -185,19 +185,29 @@ def client_token_string():
     return result
 
 
+def _anaconda_dom(url):
+    try:
+        result = url.split("/", 3)[2].lower().rsplit(".", 2)
+        if len(result) > 1 and result[-2] == "anaconda":
+            return result[-1]
+    except Exception:
+        pass
+
+
 @memoize
-def logged_in_token():
+def logged_in_tokens():
     try:
         from conda.gateways import anaconda_client as ac
 
         tokens = ac.read_binstar_tokens()
-        for dom in (".anaconda.cloud/", ".anaconda.org/"):
-            for k, v in tokens.items():
-                if dom in k:
-                    return dom.rsplit(".", 1)[-1] + v
     except Exception:
-        pass
-    return None
+        return
+    results = []
+    for k, v in tokens.items():
+        t_dom = _anaconda_dom(k)
+        if t_dom:
+            results.append(f"{t_dom}/{v}")
+    return ",".join(results)
 
 
 def _new_user_agent(ctx):
@@ -211,9 +221,11 @@ def _new_apply_basic_auth(request):
     token = client_token_string()
     if token:
         request.headers["X-Anaconda-Ident"] = token
-    token = logged_in_token()
-    if token:
-        request.headers["X-Anaconda-Token"] = token
+    # Accumulate all login tokens
+    if _anaconda_dom(request.url):
+        token = logged_in_tokens()
+        if token:
+            request.headers["X-Anaconda-Token"] = token
     return result
 
 
