@@ -83,6 +83,7 @@ if token_env:
     token_env = {token_chan: token_env}
 else:
     token_env = None
+li_token = patch.logged_in_token()
 
 if not token_env and token_baked:
     print("Unexpected baked token set:", token_baked)
@@ -192,11 +193,10 @@ for flag in flags:
         user_agent = user_agent[0].split(":", 1)[-1].strip() if user_agent else ""
         header = header[0].split(": ", 1)[-1].strip() if header else ""
         assert user_agent.endswith(header), (user_agent, header)
-        if token_env:
-            env_value = list(token_env.values())[-1]
-            t_header = [v for v in proc.stderr.splitlines() if "X-Anaconda-Token" in v]
-            t_header = t_header[0].split(": ", 1)[-1].strip() if t_header else ""
-            assert t_header.rsplit("/", 1)[-1] == env_value, (t_header, token_env)
+        t_header = [v for v in proc.stderr.splitlines() if "X-Anaconda-Token" in v]
+        t_header = t_header[0].split(": ", 1)[-1].strip() if t_header else ""
+        exp_value = li_token if is_enabled and li_token else ""
+        assert t_header == exp_value, (t_header, li_token, is_enabled)
         if is_enabled:
             new_values = {token[0]: token for token in header.split(" ") if token}
             # Confirm that all of the expected tokens are present
