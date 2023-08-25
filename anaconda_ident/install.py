@@ -109,7 +109,7 @@ def parse_argv(args=None):
     p = argparse.ArgumentParser(description="The anaconda-ident installer.")
 
     # We're separating parser configuration here as it enables us to re-use
-    # the code to configure the subcommand parser in conda>23.7.0 style subcommands
+    # the code to configure the subcommand parser in conda>=23.7.0 style subcommands
     configure_parser(p)
 
     # args is None when it's being called as anaconda-ident, and it's populated
@@ -577,8 +577,8 @@ def execute(args):
     """
     global success
 
-    # if the conda>=23.7.0 subcommand is configuring the subcommand parser,
-    # we're storing the instance in a module variable and print the help
+    # if a conda>=23.7.0 subcommand plugin is configuring the subcommand parser,
+    # we're storing the instance in a module variable, so we can print the help
     # if there are no command line options passed
     if _subcommand_parser is not None and len(sys.argv) <= 2:
         _subcommand_parser.print_help()
