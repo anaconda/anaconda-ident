@@ -62,12 +62,16 @@ jobs:
         call %CONDA%/Scripts/activate
         anaconda-ident --status
         anaconda-keymgr --help
+        conda anaconda-ident --status
+        conda anaconda-ident --help
     - name: Test endpoints (Unix)
       if: matrix.os != 'windows-latest'
       run: |
         source $CONDA/bin/activate
         anaconda-ident --status
         anaconda-keymgr --help
+        conda anaconda-ident --status
+        conda anaconda-ident --help
     - name: Build an installer
       env:
         TEST_REPO_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
