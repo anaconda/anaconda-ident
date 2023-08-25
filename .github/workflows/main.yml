@@ -54,7 +54,7 @@ jobs:
         mv conda-bld $CONDA/
         source $CONDA/etc/profile.d/conda.sh
         conda install anaconda-client constructor conda-index local::anaconda-ident
-        conda create -p ./testenv local::anaconda-ident conda==${{ matrix.cversion }}
+        conda create -p ./testenv local::anaconda-ident conda==${{ matrix.cversion }} conda-libmamba-solver
     - name: Test endpoints (Windows)
       if: matrix.os == 'windows-latest'
       shell: cmd
@@ -107,6 +107,10 @@ jobs:
         python -m anaconda_ident.install --status
         python test_config.py
         bash test_keymgr.sh
+        conda config --set solver libmamba
+        python test_config.py
+        bash test_keymgr.sh
+        conda config --set solver classic
   upload:
     needs: test
     runs-on: ubuntu-latest
