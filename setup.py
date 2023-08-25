@@ -17,7 +17,10 @@ setup(
         "console_scripts": [
             "anaconda-ident = anaconda_ident.install:main",
             "anaconda-keymgr = anaconda_ident.keymgr:main",
-        ]
+        ],
+        "conda": [
+            "anaconda-ident-plugin = anaconda_ident.plugin",
+        ],
     },
     classifiers=[
         "Programming Language :: Python :: 3",
