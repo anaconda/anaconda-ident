@@ -2,7 +2,7 @@ import os
 import sys
 import subprocess
 
-from anaconda_ident import patch
+from anaconda_ident import patch, __version__
 from conda.base.context import context
 
 context.__init__()
@@ -165,6 +165,7 @@ for flag in flags:
             "{:{w1}} {:{w2}} ".format(param, test_fields, w1=max_param, w2=max_field),
             end="",
         )
+        test_fields = "i" + test_fields
         if not skip_install:
             subprocess.run(
                 ["python", "-m", "anaconda_ident.install", "--config", param],
@@ -202,6 +203,8 @@ for flag in flags:
             if "s" in new_values:
                 failed = failed or new_values["s"] in all_session_tokens
                 all_session_tokens.add(new_values["s"])
+            if "i" in new_values:
+                failed = failed or new_values["i"] != f"ident/{__version__}"
             # Confirm that any values besides session and org do not change from run to run
             if not failed:
                 failed = any(
