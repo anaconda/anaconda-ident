@@ -1,5 +1,4 @@
 from conda import plugins, __version__ as conda_version
-from packaging.version import parse
 
 from . import install
 
@@ -22,7 +21,7 @@ def conda_subcommands():
     The conda subcommand plugin hook implementation that works on conda>=22.11.0
     """
     # conda>=23.7.0 has more a more advanced subcommand plugin hook
-    if parse(conda_version) >= parse("23.7.0"):
+    if tuple(conda_version.split(".")[:2]) >= ("23", "7"):
         yield plugins.CondaSubcommand(
             name=subcommand_name,
             summary=subcommand_summary,
