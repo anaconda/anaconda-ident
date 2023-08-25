@@ -20,7 +20,7 @@ def conda_subcommands():
     """
     The conda subcommand plugin hook implementation that works on conda>=22.11.0
     """
-    # conda>=23.7.0 has more a more advanced subcommand plugin hook
+    # conda>=23.7.0 has a more advanced subcommand plugin hook
     if tuple(conda_version.split(".")[:2]) >= ("23", "7"):
         yield plugins.CondaSubcommand(
             name=subcommand_name,
