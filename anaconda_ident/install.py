@@ -7,9 +7,12 @@ import os
 from os.path import basename, dirname, exists, join, relpath
 from traceback import format_exc
 
+# Used by the subcommand plugin that doesn't have access to the used argparse parser
+_subcommand_parser = None
 
-def parse_argv():
-    p = argparse.ArgumentParser()
+
+def configure_parser(p):
+    """Configure the given argparse parser instance"""
     g = p.add_mutually_exclusive_group()
     g.add_argument(
         "--enable",
@@ -100,8 +103,22 @@ def parse_argv():
     p.add_argument(
         "--ignore-missing", action="store_true", default=None, help=argparse.SUPPRESS
     )
-    sys.argv[0] = "anaconda-ident"
-    args = p.parse_args()
+
+
+def parse_argv(args=None):
+    p = argparse.ArgumentParser(description="The anaconda-ident installer.")
+
+    # We're separating parser configuration here as it enables us to re-use
+    # the code to configure the subcommand parser in conda>=23.7.0 style subcommands
+    configure_parser(p)
+
+    # args is None when it's being called as anaconda-ident, and it's populated
+    # when called from the conda subcommand, we don't need to update sys.argv then
+    if args is None:
+        sys.argv[0] = "anaconda-ident"
+
+    args = p.parse_args(args)
+
     if (args.clean or args.verify or args.status) and sum(
         v is not None for v in vars(args).values()
     ) != 6:
@@ -553,12 +570,18 @@ def modify_binstar(args, condarc, save=True):
                 error("token installation failed", warn=True)
 
 
-def main():
+def execute(args):
+    """
+    This is just the CLI execution after parsing and before returning of
+    the result to integration into the conda subcommand plugin API
+    """
     global success
 
-    args, p = parse_argv()
-    if len(sys.argv) <= 1:
-        p.print_help()
+    # if a conda>=23.7.0 subcommand plugin is configuring the subcommand parser,
+    # we're storing the instance in a module variable, so we can print the help
+    # if there are no command line options passed
+    if _subcommand_parser is not None and len(sys.argv) <= 2:
+        _subcommand_parser.print_help()
         return 0
 
     verbose = args.verbose or args.status or len(sys.argv) <= 1
@@ -596,6 +619,25 @@ def main():
         modify_binstar(args, newcondarc, save=args.write_token)
     if verbose:
         print(msg)
+
+
+def main(args=None):
+    global success
+
+    # if conda passes us pre-parsed args, we have to reuse them for
+    # the conda subcommand integration
+    args, p = parse_argv(args)
+
+    # we're checking for conda or conda.exe for old-style conda subcommands
+    if len(sys.argv) <= 1 or (
+        basename(sys.argv[0]).lower() in ("conda", "conda.exe") and len(sys.argv) <= 2
+    ):
+        p.print_help()
+        return 0
+
+    # we separate execution here to be able to hook into the conda subcommand plugin API
+    execute(args)
+
     return 0 if success else -1
 
 
