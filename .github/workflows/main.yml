@@ -107,6 +107,10 @@ jobs:
         python -m anaconda_ident.install --status
         python test_config.py
         bash test_keymgr.sh
+        conda config --set solver=libmamba
+        python test_config.py
+        bash test_keymgr.sh
+        conda config --set solver=classic
   upload:
     needs: test
     runs-on: ubuntu-latest
