@@ -105,7 +105,7 @@ def get_environment_token():
     return get_random_token(8, hash.digest())
 
 
-def get_username():
+def get_local_username():
     try:
         return getpass.getuser()
     except Exception as exc:
@@ -117,6 +117,19 @@ def get_hostname():
     if not value:
         log.debug("platform.node returned an empty value")
     return value
+
+
+@memoize
+def get_anaconda_username():
+    try:
+        from anaconda_cloud_auth.token import TokenInfo
+
+        return TokenInfo.load("anaconda.cloud").username
+    except ImportError:
+        log.debug("no anaconda.cloud client detected")
+    except Exception as exc:
+        message = getattr(exc, "message", None) or exc
+        log.debug("error loading anaconda.cloud token: %s", message)
 
 
 def get_config_value(key):
@@ -166,7 +179,7 @@ def client_token_string():
         elif code == "s":
             value = Context.session_token
         elif code == "u":
-            value = get_username()
+            value = get_local_username()
         elif code == "h":
             value = get_hostname()
         elif code == "o":
@@ -191,11 +204,23 @@ def _new_user_agent(ctx):
     return result + " " + token if token else result
 
 
+def _is_anaconda_dom(url):
+    if "anaconda" in url:
+        parts = url.split("/", 3)
+        if len(parts) > 2 and parts[1] == "":
+            dom = parts[2].rsplit(".", 2)
+            return len(dom) > 1 and dom[-2].lower() == "anaconda"
+
+
 def _new_apply_basic_auth(request):
     result = CondaHttpAuth._old_apply_basic_auth(request)
     token = client_token_string()
     if token:
         request.headers["X-Anaconda-Ident"] = token
+    if _is_anaconda_dom(request.url):
+        username = get_anaconda_username()
+        if username:
+            request.headers["X-Anaconda-Username"] = username
     return result
 
 
@@ -224,7 +249,7 @@ if not hasattr(Context, "client_token_raw"):
 if not hasattr(Context, "_old_user_agent"):
     Context._old_user_agent = Context.user_agent
     # Using a different name ensures that this is stored
-    # in sthe cache in a different place than the original
+    # in the cache in a different place than the original
     Context.user_agent = memoizedproperty(_new_user_agent)
 
 # conda.gateways.connection.session.CondaHttpAuth
