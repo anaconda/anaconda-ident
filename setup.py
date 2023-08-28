@@ -9,7 +9,7 @@ setup(
     license="BSD",
     author="Michael C. Grant",
     author_email="mcg@cvxr.com",
-    url="https://github.com/mcg1969/anaconda-ident",
+    url="https://github.com/Anaconda-Platform/anaconda-ident",
     packages=["anaconda_ident"],
     install_requires=["conda"],
     keywords=["anaconda-ident"],
