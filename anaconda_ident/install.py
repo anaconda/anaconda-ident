@@ -296,9 +296,14 @@ def _patch(args, pfile, patch_text, old_patch_text, safety_len):
         os.rename(pfile, pfile_orig)
         renamed = True
         os.rename(pfile + ".new", pfile)
-        print("success")
+        if verbose:
+            print("success")
     except Exception as exc:
-        print(f"failed: {exc}")
+        if verbose:
+            what = "failed"
+        else:
+            what = f"failed to patch {relpath(pfile, _sp_dir())}"
+        print(f"{what}: {exc}")
         if renamed:
             os.rename(pfile_orig, pfile)
     text, status = _read(args, pfile, patch_text)
