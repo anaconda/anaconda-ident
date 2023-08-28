@@ -7,7 +7,11 @@ def get_baked_tokens():
         try:
             from conda.base.context import context
 
-            if not getattr(context, "repo_tokens", None):
+            # When importing the context module outside of
+            # conda, the context object will not be initialized.
+            # We detect this by looking for our patched value
+            # of repo_tokens. If it is not there, initialize
+            if not hasattr(context, "repo_tokens"):
                 context.__init__()
             _baked_tokens = context.repo_tokens
         except Exception:
