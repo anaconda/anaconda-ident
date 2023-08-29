@@ -26,10 +26,8 @@ print("-----")
 # In theory, test_fields = _client_token_formats[param]
 # I'm hardcoding them here so the test doesn't depend on that
 # part of the code, with the exception of "baked" test below.
-test_patterns = ("default", "cse")
+test_patterns = (("default", "cse"),)
 flags = ("", "--disable", "--enable")
-
-skip_install = bool(os.environ.get("SKIP_INSTALL"))
 
 nfailed = 0
 saved_values = {}
@@ -59,11 +57,6 @@ for flag in flags:
             end="",
         )
         test_fields = "i" + test_fields
-        if not skip_install:
-            subprocess.run(
-                ["python", "-m", "anaconda_ident.install", "--config", param],
-                capture_output=True,
-            )
         # Make sure to leave override-channels and the full channel URL in here.
         # This allows this command to run fully no matter what we do to channel_alias
         # and default_channels
@@ -81,10 +74,11 @@ for flag in flags:
             text=True,
         )
         user_agent = [v for v in proc.stderr.splitlines() if "User-Agent" in v]
-        header = [v for v in proc.stderr.splitlines() if "X-Anaconda-Ident" in v]
         user_agent = user_agent[0].split(":", 1)[-1].strip() if user_agent else ""
-        header = header[0].split(": ", 1)[-1].strip() if header else ""
-        assert user_agent.endswith(header), (user_agent, header)
+        if "ident/" in user_agent:
+            header = user_agent[user_agent.find("ident/") :]
+        else:
+            header = ""
         if is_enabled:
             new_values = {token[0]: token for token in header.split(" ") if token}
             # Confirm that all of the expected tokens are present
@@ -109,11 +103,6 @@ for flag in flags:
             failed = len(header) > 0
         print("XX" if failed else "OK", header)
         nfailed += failed
-        if not skip_install:
-            subprocess.run(
-                ["python", "-m", "anaconda_ident.install", "--config", ""],
-                capture_output=True,
-            )
         if failed and "--fast" in sys.argv:
             sys.exit(1)
 

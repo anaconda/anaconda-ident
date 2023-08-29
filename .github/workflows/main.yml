@@ -61,24 +61,20 @@ jobs:
       run: |
         call %CONDA%/Scripts/activate
         anaconda-ident --status
-        anaconda-keymgr --help
         conda anaconda-ident --status
-        conda anaconda-ident --help
     - name: Test endpoints (Unix)
       if: matrix.os != 'windows-latest'
       run: |
         source $CONDA/bin/activate
         anaconda-ident --status
-        anaconda-keymgr --help
         conda anaconda-ident --status
-        conda anaconda-ident --help
     - name: Build an installer
       env:
         TEST_REPO_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
       run: |
         cd tests
         export CONDA_PREFIX=$CONDA
-        bash test_installer.sh "$TEST_REPO_TOKEN" ${{ matrix.cversion }}
+        bash test_installer.sh ${{ matrix.cversion }}
     - name: Run the installer (Windows)
       if: matrix.os == 'windows-latest'
       shell: cmd
@@ -91,11 +87,9 @@ jobs:
         cd tests
         bash AIDTest*.sh -b -p ~/aidtest -k
     - name: Test the installed environment
-      env:
-        TEST_REPO_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
       run: |
         cd tests
-        bash test_environment.sh ~/aidtest "$TEST_REPO_TOKEN"
+        bash test_environment.sh ~/aidtest
     - name: Test the package
       run: |
         set -x
@@ -106,10 +100,8 @@ jobs:
         cd tests
         python -m anaconda_ident.install --status
         python test_config.py
-        bash test_keymgr.sh
         conda config --set solver libmamba
         python test_config.py
-        bash test_keymgr.sh
         conda config --set solver classic
   upload:
     needs: test

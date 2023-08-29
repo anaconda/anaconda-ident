@@ -26,12 +26,7 @@ def configure_parser(p):
         "without reading or modifying the current configuration.",
     )
     g.add_argument(
-        "--disable",
-        action="store_true",
-        help="Disable anaconda_ident operation. "
-        "The configuration file is left in place, so that full operation can "
-        "resume with a call to --enable. To remove the settings as well, use the "
-        "--clean option instead.",
+        "--disable", action="store_true", help="Disable anaconda_ident operation."
     )
     g.add_argument(
         "--status",
@@ -61,10 +56,10 @@ def parse_argv(args=None):
 
     args = p.parse_args(args)
 
-    if (args.clean or args.verify or args.status) and sum(
+    if (args.verify or args.status) and sum(
         v is not None for v in vars(args).values()
     ) != 6:
-        what = "clean" if args.clean else ("status" if args.status else "verify")
+        what = "status" if args.status else "verify"
         print("WARNING: --%s overrides other operations" % what)
     return args, p
 
@@ -178,7 +173,7 @@ def _patch(args, pfile, patch_text, old_patch_text, safety_len):
     if status == "NOT PRESENT":
         return
     enable = args.enable or args.verify
-    disable = args.disable or args.clean
+    disable = args.disable
     if status == "NEEDS UPDATE":
         need_change = True
         status = "reverting" if disable else "updating"

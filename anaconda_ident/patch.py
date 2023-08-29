@@ -75,11 +75,15 @@ def client_token_string():
     if not hasattr(Context, "session_token"):
         initialize_raw_tokens()
     parts = ["ident/" + __version__]
-    parts.append["c/" + Context.client_token_raw[:8]]
-    parts.append["s/" + Context.session_token]
+    value = Context.client_token_raw
+    if value:
+        parts.append("c/" + value[:8])
+    value = Context.session_token
+    if value:
+        parts.append("s/" + value)
     value = get_environment_token()
     if value:
-        parts.append["e/" + value]
+        parts.append("e/" + value)
     result = " ".join(parts)
     log.debug("Full client token: %s", result)
     return result
