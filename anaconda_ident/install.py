@@ -56,9 +56,7 @@ def parse_argv(args=None):
 
     args = p.parse_args(args)
 
-    if (args.verify or args.status) and sum(
-        v is not None for v in vars(args).values()
-    ) != 6:
+    if (args.verify or args.status) and (args.enable or args.disable):
         what = "status" if args.status else "verify"
         print("WARNING: --%s overrides other operations" % what)
     return args, p

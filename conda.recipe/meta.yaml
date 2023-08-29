@@ -24,9 +24,11 @@ requirements:
     - conda>=22.11.0
 
 test:
+  source_files:
+    - tests/
   commands:
     - anaconda-ident --status
-    - anaconda-keymgr --help
+    - python tests/test_config.py
 
 about:
   home: https://github.com/mcg1969/anaconda-ident
