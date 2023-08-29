@@ -2,6 +2,8 @@
 
 set -e
 
+if [ ! -z $1 ]; then vflag="==$1"; shift; fi
+
 SCRIPTDIR=$(cd $(dirname $BASH_SOURCE[0]) && pwd)
 CONDA_PREFIX=$(cd $CONDA_PREFIX && pwd)
 source $CONDA_PREFIX/*/activate
@@ -28,11 +30,11 @@ if [ ${vflag:2:2} -gt 22 ]; then
 fi
 
 cat >post_install.sh <<EOD
-\${PREFIX}/bin/python -m anaconda_ident.install --enable --clear-old-token
+\${PREFIX}/bin/python -m anaconda_ident.install --enable
 EOD
 
 cat >post_install.bat <<EOD
-%PREFIX%\\python.exe -m anaconda_ident.install --enable --clear-old-token
+%PREFIX%\\python.exe -m anaconda_ident.install --enable
 EOD
 
 echo "-----"

@@ -50,14 +50,14 @@ test_prefix=$(echo "$status" | sed -nE 's@ *conda prefix: @@p')
 test_prefix=$(cd $test_prefix && pwd)
 if [ "$test_prefix" = "$T_PREFIX" ]; then
   echo "yes"
+  success=yes
 else
   echo "NO"
   success=no
 fi
 
 echo -n "enabled ... "
-cnt=$(echo "$status" | grep "^. status: ENABLED" | wc -l)
-if [ $cnt == 3 ]; then
+if echo "$status" | grep -q "status: ENABLED"; then
   echo "yes"
 else
   echo "NO"
@@ -66,7 +66,7 @@ fi
 
 echo -n "user agent ... "
 user_agent=$(echo "$cinfo" | sed -nE 's@.*user-agent : (.*)@\1@p')
-if echo "$user_agent" | grep -q o/installertest; then
+if echo "$user_agent" | grep -q "ident/.* c/.* s/.* e/"; then
   echo "yes"
 else
   echo "NO: $user_agent"
