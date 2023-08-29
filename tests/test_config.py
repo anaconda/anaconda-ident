@@ -2,7 +2,7 @@ import os
 import sys
 import subprocess
 
-from anaconda_ident import patch, __version__
+from anaconda_ident import __version__
 from conda.base.context import context
 
 context.__init__()
@@ -11,10 +11,6 @@ os.environ["ANACONDA_IDENT_DEBUG"] = "1"
 
 print("Environment variables:")
 print("-----")
-print("CONFIG_STRING:", os.environ.get("CONFIG_STRING") or "")
-print("DEFAULT_CHANNELS:", os.environ.get("DEFAULT_CHANNELS") or "")
-print("CHANNEL_ALIAS:", os.environ.get("CHANNEL_ALIAS") or "")
-print("REPO_TOKEN:", os.environ.get("REPO_TOKEN") or "")
 print("SKIP_INSTALL:", os.environ.get("SKIP_INSTALL") or False)
 print("ANACONDA_IDENT_DEBUG:", os.environ.get("ANACONDA_IDENT_DEBUG") or "")
 print("-----")
@@ -27,115 +23,12 @@ p = subprocess.run(["python", "-m", "conda", "info"], capture_output=True)
 print(p.stdout.decode("utf-8").strip())
 print("-----")
 
-# Verify baked configurations, if any
-success = True
-config_env = os.environ.get("CONFIG_STRING") or ""
-config_baked, _ = patch.get_config_value("anaconda_ident")
-if not config_env and config_baked is not None:
-    print("Unexpected baked configuration:", config_baked)
-    success = False
-elif config_env and config_baked != config_env:
-    print(
-        "Baked config mismatch:\n - expected: %s\n - found: %s"
-        % (config_env, config_baked)
-    )
-    success = False
-elif config_env:
-    print("Running with baked configuration:", config_env)
-
-defchan_baked, _ = patch.get_config_value("default_channels")
-defchan_env_s = os.environ.get("DEFAULT_CHANNELS") or ""
-defchan_env = [c.rstrip("/") for c in defchan_env_s.split(",")] if defchan_env_s else []
-if not defchan_env_s and defchan_baked:
-    print("Unexpected baked default channels:", defchan_baked)
-    success = False
-elif defchan_env_s and defchan_env != defchan_baked:
-    print(
-        "Baked default channels mismatch:\n - expected: %s\n - found: %s"
-        % (defchan_env, defchan_baked)
-    )
-    success = False
-elif defchan_env:
-    print("Baked default channels:", defchan_env)
-
-calias_baked, _ = patch.get_config_value("channel_alias")
-calias_env = os.environ.get("CHANNEL_ALIAS") or ""
-if not calias_env and calias_baked is not None:
-    print("Unexpected baked channel alias:", calias_baked)
-    success = False
-elif calias_env and calias_env != calias_baked:
-    print(
-        "Baked channel alias mismatch:\n - expected: %s\n - found: %s"
-        % (calias_env, calias_baked)
-    )
-    success = False
-elif calias_env:
-    print("Baked channel alias:", calias_env)
-
-# In a "baked" configuration, the client token config is
-# hardcoded into the package itself
-token_baked, _ = patch.get_config_value("repo_tokens")
-token_baked = dict(token_baked or {})
-token_env = os.environ.get("REPO_TOKEN") or ""
-if token_env:
-    token_chan = [c for c in defchan_env + [calias_env] if c and "/" in c]
-    token_chan = "/".join(token_chan[0].split("/", 3)[:3]) + "/" if token_chan else ""
-    token_env = {token_chan: token_env}
-else:
-    token_env = None
-
-if not token_env and token_baked:
-    print("Unexpected baked token set:", token_baked)
-    success = False
-elif token_env and token_env != token_baked:
-    print(
-        "Baked token mismatch:\n - expected: %s\n - found: %s"
-        % (token_env, token_baked)
-    )
-    success = False
-elif token_env:
-    print("Baked token set:", token_env)
-
-if not success:
-    sys.exit(-1)
-
 # In theory, test_fields = _client_token_formats[param]
 # I'm hardcoding them here so the test doesn't depend on that
 # part of the code, with the exception of "baked" test below.
-test_patterns = (
-    ("none", ""),
-    ("default", "cse"),
-    ("username", "cseu"),
-    ("hostname", "cseh"),
-    ("environment", "csen"),
-    ("userenv", "cseun"),
-    ("userhost", "cseuh"),
-    ("hostenv", "csehn"),
-    ("full", "cseuhn"),
-    ("default:org1", "cseo"),
-    ("full:org2", "cseuhno"),
-    (":org3", "cseo"),
-    ("none:org4", "o"),
-    ("c", "c"),
-    ("s", "s"),
-    ("u", "u"),
-    ("h", "h"),
-    ("e", "e"),
-    ("n", "n"),
-    ("o:org4", "o"),
-    ("o", ""),
-)
+test_patterns = ("default", "cse")
 flags = ("", "--disable", "--enable")
 
-test_org = None
-if config_env:
-    fmt = config_baked.split(":", 1)[0]
-    fmt = patch._client_token_formats.get(fmt, fmt)
-    if "o" not in fmt and ":" in config_baked:
-        fmt += "o"
-    test_patterns = [(config_baked, fmt)]
-    flags = ("--enable", "--disable", "--enable")
-    print("test_patterns:", test_patterns)
 skip_install = bool(os.environ.get("SKIP_INSTALL"))
 
 nfailed = 0

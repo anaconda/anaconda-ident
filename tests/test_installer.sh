@@ -2,23 +2,11 @@
 
 set -e
 
-repo_token=$1; shift
-if [ ! -z $1 ]; then vflag="==$1"; shift; fi
-
 SCRIPTDIR=$(cd $(dirname $BASH_SOURCE[0]) && pwd)
 CONDA_PREFIX=$(cd $CONDA_PREFIX && pwd)
 source $CONDA_PREFIX/*/activate
 # Needed to convert windows path to unix
 CONDA_PREFIX=$(cd $CONDA_PREFIX && pwd)
-
-SITE=https://repo.anaconda.cloud
-ALIAS=$SITE/repo
-python -m anaconda_ident.keymgr --version 999 \
-    --repo-token $repo_token --config-string full:installertest \
-    --default-channel $ALIAS/main --default-channel $ALIAS/msys2
-mkdir -p $CONDA_PREFIX/conda-bld/noarch
-mv anaconda-ident-config-999-default_0.tar.bz2 $CONDA_PREFIX/conda-bld/noarch
-python -m conda_index $CONDA_PREFIX/conda-bld
 
 cat >construct.yaml <<EOD
 name: AIDTest
@@ -30,7 +18,7 @@ channels:
 post_install: post_install.bat # [win]
 post_install: post_install.sh # [not win]
 specs:
-  - anaconda-ident-config
+  - anaconda-ident
   - anaconda-client
   - conda${vflag:-}
 EOD
