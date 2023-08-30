@@ -49,7 +49,7 @@ the telemetry insertion.
 The easiest way to verify that it is
 engaged is by typing `conda info` and examining the `user-agent`
 line. The user-agent string will look something like this
-(split over two lines for readibility):
+(split over two lines for readability):
 
 ```
 conda/22.11.1 requests/2.28.1 CPython/3.10.4 Darwin/22.2.0
@@ -159,13 +159,13 @@ All of the tokens produced by `anaconda-ident` take the form
 
 A standard configuration string is simply a combination of one
 or more of the characters `c`, `s`, `e`, `u`, `h`, and `n`. To
-include an organization string, append it to this configuraton
+include an organization string, append it to this configuration
 with a leading colon `:`.
 
 Here are some examples:
 
 - `cse`: the default combination of client, session and environment.
-- `uh:finance`: username, hostname, and a `finance` organziation.
+- `uh:finance`: username, hostname, and a `finance` organization.
 - `cseuhn:eng`: all the tokens, including an `eng` organization.
 
 For convenience, a number of special keywords are also available,
@@ -245,7 +245,7 @@ it according to the settings provided.
 If you are an Anaconda customer interested in deploying
 `anaconda-ident` within your organization, please feel free to
 reach out to [Anaconda Support](mailto:support@anaconda.com).
-We can offer the folllowing custom buidls:
+We can offer the following custom builds:
 
 - A set of `anaconda-ident` packages containing your
   preferred configuration.

@@ -1,9 +1,8 @@
-import sysconfig
 import argparse
+import os
 import stat
 import sys
-import os
-
+import sysconfig
 from os.path import basename, dirname, exists, join, relpath
 from traceback import format_exc
 
@@ -63,7 +62,7 @@ def configure_parser(p):
         "--channel-alias",
         default=None,
         help="Specify a channel_alias. "
-        "This is recomended only if all channels are sourced from the same repository; "
+        "This is recommended only if all channels are sourced from the same repository; "
         "e.g., an instance of Anaconda Server. Supply an empty string to clear the "
         "channel alias setting.",
     )
@@ -320,8 +319,8 @@ def _patch_conda_context(args, verbose):
 
 def _patch_anaconda_client(args, verbose):
     global AC_PATCH_TEXT
-    afile = join(_sp_dir(), "conda", "gateways", "anaconda_client.py")
-    _patch(args, afile, AC_PATCH_TEXT, None, 2000)
+    acfile = join(_sp_dir(), "conda", "gateways", "anaconda_client.py")
+    _patch(args, acfile, AC_PATCH_TEXT, None, 2000)
 
 
 def _patch_binstar_client(args, verbose):
@@ -362,7 +361,7 @@ def _yaml():
 def _print_config(what, args, config):
     if args.verbose or args.status:
         value = config.get("anaconda_ident")
-        print("%s user agent: %s" % (what, value or "<default>"))
+        print("{} user agent: {}".format(what, value or "<default>"))
 
 
 def _print_default_channels(what, args, config):
@@ -374,13 +373,13 @@ def _print_default_channels(what, args, config):
             value = "[]"
         else:
             value = "\n - " + "\n - ".join(value)
-        print("%s default_channels: %s" % (what, value))
+        print(f"{what} default_channels: {value}")
 
 
 def _print_channel_alias(what, args, config):
     if args.verbose or args.status:
         value = config.get("channel_alias")
-        print("%s channel_alias: %s" % (what, value or "<none>"))
+        print("{} channel_alias: {}".format(what, value or "<none>"))
 
 
 def _print_tokens(what, args, config):
@@ -389,7 +388,7 @@ def _print_tokens(what, args, config):
         if tokens:
             print("%s repo tokens:" % what)
             for k, v in tokens.items():
-                print(" - %s: %s..." % (k, v[:6]))
+                print(f" - {k}: {v[:6]}...")
         else:
             print("%s repo tokens: <none>" % what)
 
@@ -406,11 +405,11 @@ def read_condarc(args, fname):
     fexists = exists(fname)
     if verbose:
         spath = relpath(fname, sys.prefix)
-        print("config file: %s%s" % (spath, "" if fexists else " (not present)"))
+        print("config file: {}{}".format(spath, "" if fexists else " (not present)"))
     if not fexists:
         return {}
     try:
-        with open(fname, "r") as fp:
+        with open(fname) as fp:
             condarc = _yaml().safe_load(fp)
     except Exception:
         error("config load failed")

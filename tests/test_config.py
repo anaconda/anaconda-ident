@@ -1,9 +1,10 @@
 import os
-import sys
 import subprocess
+import sys
 
-from anaconda_ident import patch, __version__
 from conda.base.context import context
+
+from anaconda_ident import __version__, patch
 
 context.__init__()
 

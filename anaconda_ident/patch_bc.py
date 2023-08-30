@@ -1,4 +1,5 @@
 from binstar_client.utils import config as bc
+
 from anaconda_ident.tokens import load_baked_token
 
 

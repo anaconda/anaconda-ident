@@ -1,28 +1,26 @@
 import base64
 import getpass
+import hashlib
 import os
 import platform
 import sys
-import hashlib
+from logging import getLogger
+from os.path import basename, exists, expanduser, join
 
 import conda.base.context as c_context
+from conda.auxlib.decorators import memoize, memoizedproperty
 from conda.base.context import (
     Context,
-    context,
-    env_name,
+    MapParameter,
     ParameterLoader,
     PrimitiveParameter,
-    MapParameter,
+    context,
+    env_name,
 )
-from conda.gateways.connection.session import CondaHttpAuth
-from conda.auxlib.decorators import memoize, memoizedproperty
 from conda.cli import install as cli_install
-
-from logging import getLogger
-from os.path import join, basename, expanduser, exists
+from conda.gateways.connection.session import CondaHttpAuth
 
 from . import __version__
-
 
 log = getLogger(__name__)
 
