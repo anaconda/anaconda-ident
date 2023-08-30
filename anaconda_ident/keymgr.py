@@ -1,13 +1,13 @@
-import hashlib
 import argparse
-import sys
+import hashlib
+import io
 import json
 import os
-import io
-
-from tarfile import open as tf_open, TarInfo
+import sys
 from datetime import datetime
 from os.path import basename, dirname
+from tarfile import TarInfo
+from tarfile import open as tf_open
 
 try:
     import ruamel.yaml as ruamel_yaml
@@ -36,7 +36,7 @@ def parse_argv():
         "--channel-alias",
         default=None,
         help="Specify a channel_alias. "
-        "This is recomended only if all channels are sourced from the same repository; "
+        "This is recommended only if all channels are sourced from the same repository; "
         "e.g., an instance of Anaconda Server.",
     )
     p.add_argument(
@@ -161,11 +161,11 @@ def build_tarfile(dname, args, config_dict):
     h = hashlib.new("sha256")
     h.update(config_data)
     config_hash = h.hexdigest()
-    fname = "%s-%s-%s.tar.bz2" % (name, version, build_string)
+    fname = f"{name}-{version}-{build_string}.tar.bz2"
     fpath = os.path.join(dname or ".", fname)
     verbose = args.verbose or args.dry_run
     if verbose:
-        msg = "Building %s%s" % (fname, " (dry_run)" if args.dry_run else "")
+        msg = "Building {}{}".format(fname, " (dry_run)" if args.dry_run else "")
         print(msg)
         print(LINE)
 
@@ -236,7 +236,7 @@ def build_config_dict(args):
         if verbose:
             print("repo_tokens:")
             for k, v in result["repo_tokens"].items():
-                print("  %s: %s" % (k, v))
+                print(f"  {k}: {v}")
     return result
 
 

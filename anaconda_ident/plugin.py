@@ -1,4 +1,5 @@
-from conda import plugins, __version__ as conda_version
+from conda import __version__ as conda_version
+from conda import plugins
 
 from . import install
 
