@@ -29,7 +29,7 @@ test:
     - anaconda-keymgr --help
 
 about:
-  home: https://github.com/mcg1969/anaconda-ident
+  home: https://github.com/Anaconda-Platform/anaconda-ident
   summary: simple, opt-in user identification for conda clients
   license: {{ data.get('license') }}
   license_file: LICENSE
