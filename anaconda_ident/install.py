@@ -10,10 +10,10 @@ from traceback import format_exc
 _subcommand_parser = None
 
 
-PRO = exists(join(dirname(__file__), "pro.py"))
-if PRO and os.environ.get("ANACONDA_IDENT_DEBUG_NO_PRO"):
-    PRO = False
-edition = "commercial" if PRO else "community"
+THIS_DIR = dirname(__file__)
+FORCE_PRO = os.environ.get("ANACONDA_IDENT_DEBUG_FORCE_PRO")
+FORCE_NO_PRO = not FORCE_PRO and os.environ.get("ANACONDA_IDENT_DEBUG_NO_PRO")
+PRO = FORCE_PRO or not FORCE_NO_PRO and exists(join(THIS_DIR, "pro.py"))
 
 
 def configure_parser(p):
@@ -162,7 +162,7 @@ def _new_init(*args, **kwargs):
     except Exception as exc:
         import os, sys
         print("Error loading anaconda_ident:", exc, file=sys.stderr)
-        if os.environ.get('ANACONDA_IDENT_DEBUG'):
+        if os.environ.get('ANACONDA_IDENT_RAISE'):
             raise
     context.__init__ = _old__init__
     _old__init__(*args, **kwargs)
@@ -177,7 +177,7 @@ try:
 except Exception as exc:
     import os, sys
     print("Error loading anaconda_ident:", exc, file=sys.stderr)
-    if os.environ.get('ANACONDA_IDENT_DEBUG'):
+    if os.environ.get('ANACONDA_IDENT_RAISE'):
         raise
 # anaconda_ident p3
 """
@@ -189,7 +189,7 @@ try:
 except Exception as exc:
     import os, sys
     print("Error loading anaconda_ident:", exc, file=sys.stderr)
-    if os.environ.get('ANACONDA_IDENT_DEBUG'):
+    if os.environ.get('ANACONDA_IDENT_RAISE'):
         raise
 # anaconda_ident p3
 """
@@ -212,18 +212,18 @@ def _eolmatch(text, ptext):
     return ptext
 
 
-def _read(args, pfile, patch_text):
+def _read(args, pfile, patch_text, expect_no=False):
     if not exists(pfile):
         return None, "NOT PRESENT"
     with open(pfile, "rb") as fp:
         text = fp.read()
     patch_text = _eolmatch(text, patch_text)
     if text.endswith(patch_text):
-        status = "ENABLED"
+        status = "NEEDS REMOVAL" if expect_no else "ENABLED"
     elif b"anaconda_ident" in text:
-        status = "NEEDS UPDATE"
+        status = "NEEDS REMOVAL" if expect_no else "NEEDS UPDATE"
     else:
-        status = "DISABLED"
+        status = "DISABLED (not pro)" if expect_no else "DISABLED"
     return text, status
 
 
@@ -243,26 +243,27 @@ def _strip(text, patch_text, old_patch_text):
     return text
 
 
-def _patch(args, pfile, patch_text, old_patch_text, safety_len):
+def _patch(args, pfile, patch_text, old_patch_text, safety_len, expect_no):
     verbose = args.verbose or args.status
     if verbose:
         print(f"patch target: ...{relpath(pfile, _sp_dir())}")
-    text, status = _read(args, pfile, patch_text)
+    text, status = _read(args, pfile, patch_text, expect_no)
     if verbose:
         print(f"| status: {status}")
     if status == "NOT PRESENT":
         return
-    enable = args.enable or args.verify
-    disable = args.disable
-    if status == "NEEDS UPDATE":
+    elif status == "NEEDS UPDATE":
         need_change = True
-        status = "reverting" if disable else "updating"
-    elif enable:
+        status = "removing" if args.disable else "updating"
+    elif status == "NEEDS REMOVAL":
+        need_change = True
+        status = "removing"
+    elif (args.enable or args.verify) and not expect_no:
         need_change = status == "DISABLED"
         status = "applying"
-    elif disable:
+    elif args.disable:
         need_change = status == "ENABLED"
-        status = "reverting"
+        status = "removing"
     else:
         need_change = False
     if not need_change:
@@ -281,7 +282,7 @@ def _patch(args, pfile, patch_text, old_patch_text, safety_len):
         # would lead to conda flagging package corruption.
         with open(pfile + ".new", "wb") as fp:
             fp.write(text)
-            if status != "reverting":
+            if status != "removing":
                 fp.write(patch_text)
         pfile_orig = pfile + ".orig"
         if exists(pfile_orig):
@@ -308,28 +309,29 @@ def _patch_conda_context(args):
     global OLD_PATCH_TEXT
     global PATCH_TEXT
     pfile = join(_sp_dir(), "conda", "base", "context.py")
-    _patch(args, pfile, PATCH_TEXT, OLD_PATCH_TEXT, 70000)
+    _patch(args, pfile, PATCH_TEXT, OLD_PATCH_TEXT, 70000, False)
 
 
 def _patch_anaconda_client(args):
     global AC_PATCH_TEXT
     acfile = join(_sp_dir(), "conda", "gateways", "anaconda_client.py")
-    _patch(args, acfile, AC_PATCH_TEXT, None, 2000)
+    expect_no = FORCE_NO_PRO or not exists(join(THIS_DIR, "patch_ac.py"))
+    _patch(args, acfile, AC_PATCH_TEXT, None, 2000, expect_no)
 
 
 def _patch_binstar_client(args):
     global BS_PATCH_TEXT
     bfile = join(_sp_dir(), "binstar_client", "utils", "config.py")
-    _patch(args, bfile, BS_PATCH_TEXT, None, 9000)
+    expect_no = FORCE_NO_PRO or not exists(join(THIS_DIR, "patch_bc.py"))
+    _patch(args, bfile, BS_PATCH_TEXT, None, 9000, expect_no)
 
 
 def manage_patch(args):
     if args.verbose or args.status:
         print("conda prefix:", sys.prefix)
     _patch_conda_context(args)
-    if PRO:
-        _patch_anaconda_client(args)
-        _patch_binstar_client(args)
+    _patch_anaconda_client(args)
+    _patch_binstar_client(args)
 
 
 __yaml = None
@@ -585,6 +587,7 @@ def execute(args):
     verbose = args.verbose or args.status or len(sys.argv) <= 1
     if verbose:
         pkg_name = basename(dirname(__file__))
+        edition = "commercial" if PRO else "community"
         msg = pkg_name + f" installer: {edition} edition"
         print(msg)
         msg = "-" * len(msg)

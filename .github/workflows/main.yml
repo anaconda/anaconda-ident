@@ -64,19 +64,23 @@ jobs:
       run: |
         mv conda-bld $CONDA/
         source $CONDA/etc/profile.d/conda.sh
-        conda install anaconda-client constructor conda-index local::anaconda-ident=*=pro_*
-        conda create -p ./testenv local::anaconda-ident=*=${{ matrix.edition }}_* conda==${{ matrix.cversion }} conda-libmamba-solver
-    - name: Test endpoints (Windows)
+        pkg="local::anaconda-ident=*=${{ matrix.edition }}_*"
+        conda install anaconda-client constructor conda-index $pkg
+        conda create -p ./testenv $pkg conda==${{ matrix.cversion }} conda-libmamba-solver
+        if [ -f ./testenv/Scripts/conda.exe ]; then \
+           sed -i.bak "s@CONDA_EXE=.*@CONDA_EXE=$PWD/testenv/Scripts/conda.exe@" testenv/etc/profile.d/conda.sh; \
+        fi
+    - name: Test environments (Windows)
       if: matrix.os == 'windows-latest'
       shell: cmd
       run: |
-        call %CONDA%/Scripts/activate
+        call testenv\Scripts\activate
         anaconda-ident --status
         conda anaconda-ident --status
-    - name: Test endpoints (Unix)
+    - name: Test environments (Unix)
       if: matrix.os != 'windows-latest'
       run: |
-        source $CONDA/bin/activate
+        source ./testenv/bin/activate
         anaconda-ident --status
         conda anaconda-ident --status
     - name: Build an installer
@@ -107,13 +111,9 @@ jobs:
         bash test_environment.sh ~/aidtest "$TEST_REPO_TOKEN"
     - name: Test the package
       run: |
-        set -x
-        if [ -f ./testenv/Scripts/conda.exe ]; then \
-           sed -i.bak "s@CONDA_EXE=.*@CONDA_EXE=$PWD/testenv/Scripts/conda.exe@" testenv/etc/profile.d/conda.sh; \
-        fi
         source ./testenv/*/activate
         cd tests
-        python -m anaconda_ident.install --status
+        ANACONDA_IDENT_DEBUG_FORCE_PRO=1 python -m anaconda_ident.install --status
         python test_config.py
         if [ ${{ matrix.edition }} = pro ]; then bash test_keymgr.sh; fi
         conda config --set solver libmamba

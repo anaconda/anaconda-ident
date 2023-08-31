@@ -87,8 +87,12 @@ fi
 echo -n "enabled ... "
 cntE=$(echo "$status" | grep "^. status: ENABLED" | wc -l | sed 's@ @@g')
 cntD=$(echo "$status" | grep "^. status: DISABLED" | wc -l | sed 's@ @@g')
-if [ "$expected" = commercial ]; then expE=3; else expE=1; fi
-if [[ $cntE == expE || $cntD == 0 ]]; then
+if [ "$expected" = commercial ]; then
+  expE=3; expD=0
+else
+  expE=1; expD=2
+fi
+if [[ $cntE == $expE && $cntD == $expD ]]; then
   echo "yes ($cntE enabled, $cntD disabled)"
 else
   echo "NO ($cntE enabled, $cntD disabled)"

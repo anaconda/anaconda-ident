@@ -6,15 +6,14 @@ from conda.base.context import context
 
 from anaconda_ident import __version__, patch
 
+pro = None
 try:
-    import anaconda_ident.pro  # noqa
+    if not os.environ.get("ANACONDA_IDENT_DEBUG_NO_PRO"):
+        from anaconda_ident import pro
 
-    PRO = True
 except ImportError:
-    PRO = False
+    pass
 
-if PRO and os.environ.get("ANACONDA_IDENT_DEBUG_NO_PRO"):
-    PRO = False
 
 context.__init__()
 
@@ -136,20 +135,20 @@ test_patterns = (
     ("o:org4", "o"),
     ("o", ""),
 )
-if not PRO:
+if pro is None:
     test_patterns = (("default", "cse"),)
 flags = ("", "--disable", "--enable")
 
 test_org = None
-if config_env:
+if config_env and pro:
     fmt = config_baked.split(":", 1)[0]
-    fmt = patch._client_token_formats.get(fmt, fmt)
+    fmt = pro._client_token_formats.get(fmt, fmt)
     if "o" not in fmt and ":" in config_baked:
         fmt += "o"
     test_patterns = [(config_baked, fmt)]
     flags = ("--enable", "--disable", "--enable")
     print("test_patterns:", test_patterns)
-skip_install = not PRO or bool(os.environ.get("SKIP_INSTALL"))
+skip_install = pro is None or bool(os.environ.get("SKIP_INSTALL"))
 
 nfailed = 0
 saved_values = {}
@@ -205,7 +204,7 @@ for flag in flags:
         header = [v for v in proc.stderr.splitlines() if "X-Anaconda-Ident" in v]
         header = header[0].split(": ", 1)[-1].strip() if header else ""
         assert user_agent.endswith(header), (user_agent, header)
-        if not PRO and "ident/" in user_agent:
+        if pro is None and "ident/" in user_agent:
             ndx = user_agent.find("ident/")
             header = user_agent[ndx:]
         if is_enabled:
@@ -220,7 +219,7 @@ for flag in flags:
                 failed = failed or new_values["s"] in all_session_tokens
                 all_session_tokens.add(new_values["s"])
             if "i" in new_values:
-                prefix = "pro/" if PRO else ""
+                prefix = "pro/" if pro else ""
                 failed = failed or new_values["i"] != f"ident/{prefix}{__version__}"
             # Confirm that any values besides session and org do not change from run to run
             if not failed:
