@@ -1,3 +1,5 @@
+#!/bin/bash
+
 "${PREFIX}/bin/python" -m pip install --no-deps --ignore-installed -vv .
 mkdir -p "${PREFIX}/etc/conda/activate.d"
 mkdir -p "${PREFIX}/python-scripts"
