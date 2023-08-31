@@ -115,10 +115,10 @@ jobs:
         cd tests
         python -m anaconda_ident.install --status
         python test_config.py
-        bash test_keymgr.sh
+        if [ ${{ matrix.edition }} = pro ]; then bash test_keymgr.sh; fi
         conda config --set solver libmamba
         python test_config.py
-        bash test_keymgr.sh
+        if [ ${{ matrix.edition }} = pro ]; then bash test_keymgr.sh; fi
         conda config --set solver classic
   upload:
     needs: test
