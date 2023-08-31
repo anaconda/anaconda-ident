@@ -10,6 +10,12 @@ from traceback import format_exc
 _subcommand_parser = None
 
 
+PRO = exists(join(dirname(__file__), "pro.py"))
+if PRO and os.environ.get("ANACONDA_IDENT_DEBUG_NO_PRO"):
+    PRO = False
+edition = "commercial" if PRO else "community"
+
+
 def configure_parser(p):
     """Configure the given argparse parser instance"""
     g = p.add_mutually_exclusive_group()
@@ -23,84 +29,78 @@ def configure_parser(p):
         "--verify",
         action="store_true",
         help="Enable anaconda_ident operation if necessary and exit immediately, "
-        "without reading or modifying the current configuration.",
+        "without reading or modifying the current configuration. All other command "
+        "line options except --quiet are ignored if this is supplied.",
     )
     g.add_argument(
-        "--disable",
-        action="store_true",
-        help="Disable anaconda_ident operation. "
-        "The configuration file is left in place, so that full operation can "
-        "resume with a call to --enable. To remove the settings as well, use the "
-        "--clean option instead.",
+        "--disable", action="store_true", help="Disable anaconda_ident operation. "
     )
     g.add_argument(
         "--status",
         action="store_true",
         help="Print the anaconda_ident patch and configuration status, and make no changes.",
     )
-    g.add_argument(
-        "--clean",
-        action="store_true",
-        help="Disable anaconda_ident operation and remove all configuration data. "
-        "If you re-enable anaconda_ident, you will need to rebuild the configuration.",
-    )
-    p.add_argument(
-        "--config",
-        default=None,
-        help="Set the telemetry configuration. "
-        "Supply an empty string to revert to the default setting.",
-    )
-    p.add_argument(
-        "--default-channel",
-        action="append",
-        help="Specify a default channel. "
-        "Multiple channels may be supplied as a comma-separated list or by supplying "
-        "multiple --default-channel options. Supply an empty string to clear the "
-        "default channel list completely.",
-    )
-    p.add_argument(
-        "--channel-alias",
-        default=None,
-        help="Specify a channel_alias. "
-        "This is recommended only if all channels are sourced from the same repository; "
-        "e.g., an instance of Anaconda Server. Supply an empty string to clear the "
-        "channel alias setting.",
-    )
-    p.add_argument(
-        "--repo-token",
-        default=None,
-        help="Store a token for conda authentication. To use this, a full channel "
-        "URL is required. This will either be determined from the first full URL "
-        "in the default_channels list; or if not present there, from channel_alias. "
-        "Supply an empty string to clear the token.",
-    )
-    p.add_argument(
-        "--write-token",
-        default=None,
-        action="store_true",
-        help="Write the token to the standard location. This is needed for certain "
-        "packages like Anaconda Navigator that do not use conda for authentication. "
-        "Existing tokens for the same location are replaced. "
-        "This is most useful in an installer post-install script.",
-    )
-    p.add_argument(
-        "--clear-old-token",
-        default=None,
-        action="store_true",
-        help="Clear any saved tokens written to the standard location that would "
-        "conflict with the token in the installer. This helps ensure there the "
-        "installed environment behaves as expected when replacing an older install. "
-        "This is most useful in an installer post-install script.",
-    )
+    if PRO:
+        g.add_argument(
+            "--clean",
+            action="store_true",
+            help="Disable anaconda_ident operation and remove all configuration data. "
+            "If you re-enable anaconda_ident, you will need to rebuild the configuration.",
+        )
+        p.add_argument(
+            "--config",
+            default=None,
+            help="Set the telemetry configuration. "
+            "Supply an empty string to revert to the default setting.",
+        )
+        p.add_argument(
+            "--default-channel",
+            action="append",
+            help="Specify a default channel. "
+            "Multiple channels may be supplied as a comma-separated list or by supplying "
+            "multiple --default-channel options. Supply an empty string to clear the "
+            "default channel list completely.",
+        )
+        p.add_argument(
+            "--channel-alias",
+            default=None,
+            help="Specify a channel_alias. "
+            "This is recommended only if all channels are sourced from the same repository; "
+            "e.g., an instance of Anaconda Server. Supply an empty string to clear the "
+            "channel alias setting.",
+        )
+        p.add_argument(
+            "--repo-token",
+            default=None,
+            help="Store a token for conda authentication. To use this, a full channel "
+            "URL is required. This will either be determined from the first full URL "
+            "in the default_channels list; or if not present there, from channel_alias. "
+            "Supply an empty string to clear the token.",
+        )
+        p.add_argument(
+            "--write-token",
+            default=None,
+            action="store_true",
+            help="Write the token to the standard location. This is needed for certain "
+            "packages like Anaconda Navigator that do not use conda for authentication. "
+            "Existing tokens for the same location are replaced. "
+            "This is most useful in an installer post-install script.",
+        )
+        p.add_argument(
+            "--clear-old-token",
+            default=None,
+            action="store_true",
+            help="Clear any saved tokens written to the standard location that would "
+            "conflict with the token in the installer. This helps ensure there the "
+            "installed environment behaves as expected when replacing an older install. "
+            "This is most useful in an installer post-install script.",
+        )
     p.add_argument(
         "--quiet",
         dest="verbose",
         action="store_false",
         default=True,
         help="Silent mode; disables all non-error output.",
-    )
-    p.add_argument(
-        "--ignore-missing", action="store_true", default=None, help=argparse.SUPPRESS
     )
 
 
@@ -117,12 +117,6 @@ def parse_argv(args=None):
         sys.argv[0] = "anaconda-ident"
 
     args = p.parse_args(args)
-
-    if (args.clean or args.verify or args.status) and sum(
-        v is not None for v in vars(args).values()
-    ) != 6:
-        what = "clean" if args.clean else ("status" if args.status else "verify")
-        print("WARNING: --%s overrides other operations" % what)
     return args, p
 
 
@@ -259,7 +253,7 @@ def _patch(args, pfile, patch_text, old_patch_text, safety_len):
     if status == "NOT PRESENT":
         return
     enable = args.enable or args.verify
-    disable = args.disable or args.clean
+    disable = args.disable
     if status == "NEEDS UPDATE":
         need_change = True
         status = "reverting" if disable else "updating"
@@ -310,32 +304,32 @@ def _patch(args, pfile, patch_text, old_patch_text, safety_len):
         print(f"| new status: {status}")
 
 
-def _patch_conda_context(args, verbose):
+def _patch_conda_context(args):
     global OLD_PATCH_TEXT
     global PATCH_TEXT
     pfile = join(_sp_dir(), "conda", "base", "context.py")
     _patch(args, pfile, PATCH_TEXT, OLD_PATCH_TEXT, 70000)
 
 
-def _patch_anaconda_client(args, verbose):
+def _patch_anaconda_client(args):
     global AC_PATCH_TEXT
     acfile = join(_sp_dir(), "conda", "gateways", "anaconda_client.py")
     _patch(args, acfile, AC_PATCH_TEXT, None, 2000)
 
 
-def _patch_binstar_client(args, verbose):
+def _patch_binstar_client(args):
     global BS_PATCH_TEXT
     bfile = join(_sp_dir(), "binstar_client", "utils", "config.py")
     _patch(args, bfile, BS_PATCH_TEXT, None, 9000)
 
 
 def manage_patch(args):
-    verbose = args.verbose or args.status
-    if verbose:
+    if args.verbose or args.status:
         print("conda prefix:", sys.prefix)
-    _patch_conda_context(args, verbose)
-    _patch_anaconda_client(args, verbose)
-    _patch_binstar_client(args, verbose)
+    _patch_conda_context(args)
+    if PRO:
+        _patch_anaconda_client(args)
+        _patch_binstar_client(args)
 
 
 __yaml = None
@@ -591,7 +585,7 @@ def execute(args):
     verbose = args.verbose or args.status or len(sys.argv) <= 1
     if verbose:
         pkg_name = basename(dirname(__file__))
-        msg = pkg_name + " installer"
+        msg = pkg_name + f" installer: {edition} edition"
         print(msg)
         msg = "-" * len(msg)
         print(msg)
@@ -600,7 +594,7 @@ def execute(args):
             print(msg)
             return 0
     manage_patch(args)
-    if args.verify:
+    if args.verify or not PRO:
         if verbose:
             print(msg)
         return 0

@@ -6,6 +6,16 @@ from conda.base.context import context
 
 from anaconda_ident import __version__, patch
 
+try:
+    import anaconda_ident.pro  # noqa
+
+    PRO = True
+except ImportError:
+    PRO = False
+
+if PRO and os.environ.get("ANACONDA_IDENT_DEBUG_NO_PRO"):
+    PRO = False
+
 context.__init__()
 
 os.environ["ANACONDA_IDENT_DEBUG"] = "1"
@@ -126,6 +136,8 @@ test_patterns = (
     ("o:org4", "o"),
     ("o", ""),
 )
+if not PRO:
+    test_patterns = (("default", "cse"),)
 flags = ("", "--disable", "--enable")
 
 test_org = None
@@ -137,7 +149,7 @@ if config_env:
     test_patterns = [(config_baked, fmt)]
     flags = ("--enable", "--disable", "--enable")
     print("test_patterns:", test_patterns)
-skip_install = bool(os.environ.get("SKIP_INSTALL"))
+skip_install = not PRO or bool(os.environ.get("SKIP_INSTALL"))
 
 nfailed = 0
 saved_values = {}
@@ -189,10 +201,13 @@ for flag in flags:
             text=True,
         )
         user_agent = [v for v in proc.stderr.splitlines() if "User-Agent" in v]
-        header = [v for v in proc.stderr.splitlines() if "X-Anaconda-Ident" in v]
         user_agent = user_agent[0].split(":", 1)[-1].strip() if user_agent else ""
+        header = [v for v in proc.stderr.splitlines() if "X-Anaconda-Ident" in v]
         header = header[0].split(": ", 1)[-1].strip() if header else ""
         assert user_agent.endswith(header), (user_agent, header)
+        if not PRO and "ident/" in user_agent:
+            ndx = user_agent.find("ident/")
+            header = user_agent[ndx:]
         if is_enabled:
             new_values = {token[0]: token for token in header.split(" ") if token}
             # Confirm that all of the expected tokens are present
@@ -205,7 +220,8 @@ for flag in flags:
                 failed = failed or new_values["s"] in all_session_tokens
                 all_session_tokens.add(new_values["s"])
             if "i" in new_values:
-                failed = failed or new_values["i"] != f"ident/{__version__}"
+                prefix = "pro/" if PRO else ""
+                failed = failed or new_values["i"] != f"ident/{prefix}{__version__}"
             # Confirm that any values besides session and org do not change from run to run
             if not failed:
                 failed = any(

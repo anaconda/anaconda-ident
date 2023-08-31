@@ -1,6 +1,9 @@
 "${PREFIX}/bin/python" -m pip install --no-deps --ignore-installed -vv .
 mkdir -p "${PREFIX}/etc/conda/activate.d"
 mkdir -p "${PREFIX}/python-scripts"
+if [ "${PRO_BUILD}" != "yes" ]; then
+    rm ${SP_DIR}/anaconda_ident/{pro,keymgr,patch_ac,patch_bc,tokens}.py
+fi
 cp "${RECIPE_DIR}/post-link.sh" "${PREFIX}/etc/conda/activate.d/${PKG_NAME}_activate.sh"
 cp "${RECIPE_DIR}/post-link.bat" "${PREFIX}/etc/conda/activate.d/${PKG_NAME}_activate.bat"
 cp "${RECIPE_DIR}/post-link.bat" "${PREFIX}/python-scripts/.${PKG_NAME}-post-link.bat"

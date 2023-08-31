@@ -11,7 +11,11 @@ build:
   noarch: python
   entry_points:
     - anaconda-ident = anaconda_ident.install:main
-    - anaconda-keymgr = anaconda_ident.keymgr:main
+    - anaconda-ident = anaconda_ident.install:main
+    - anaconda-keymgr = anaconda_ident.keymgr:main  # [edition=="pro"]
+  script_env:
+    - PRO_BUILD=yes  # [edition=="pro"]
+  string: {{ edition }}_{{ PKG_BUILDNUM }}
 
 requirements:
   host:
@@ -22,11 +26,16 @@ requirements:
   run:
     - python>=3.6
     - conda>=22.11.0
+  run_constrained:
+    - anaconda-ident-config<0  # [edition!="pro"]
 
 test:
+  source_files:
+    - tests
   commands:
     - anaconda-ident --status
-    - anaconda-keymgr --help
+    - anaconda-keymgr --help  # [edition=="pro"]
+    - python tests/test_config.py
 
 about:
   home: https://github.com/Anaconda-Platform/anaconda-ident
