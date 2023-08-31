@@ -1,31 +1,31 @@
 #!/bin/bash
 
-set -e
+set -o errtrace -o nounset -o pipefail -o errexit
 
 echo "Environment tester"
 echo "------------------------"
-T_PREFIX=$(cd $1 && pwd); shift
+T_PREFIX=$(cd "$1" && pwd); shift
 echo "prefix ... $T_PREFIX"
 
 echo -n "python ... "
 T_PYTHON_WIN=$T_PREFIX/python.exe
 T_PYTHON_UNX=$T_PREFIX/bin/python
-if [ -x $T_PYTHON_WIN ]; then
+if [ -x "$T_PYTHON_WIN" ]; then
   T_PYTHON=$T_PYTHON_WIN
-elif [ -x $T_PYTHON_UNX ]; then
+elif [ -x "$T_PYTHON_UNX" ]; then
   T_PYTHON=$T_PYTHON_UNX
 fi
 if [ -z "$T_PYTHON" ]; then
   echo "MISSING"
-  exit -1
+  exit 1
 fi
-echo $T_PYTHON
+echo "$T_PYTHON"
 
 echo -n "token ... "
 repo_token=$1; shift
 if [ -z "$repo_token" ]; then
   echo "MISSING"
-  exit -1
+  exit 1
 fi
 echo "${repo_token:0:6}..."
 success=yes
@@ -57,7 +57,7 @@ echo
 echo -n "correct prefix ... "
 test_prefix=$(echo "$status" | sed -nE 's@ *conda prefix: @@p')
 # For windows this converts the prefix to posix
-test_prefix=$(cd $test_prefix && pwd)
+test_prefix=$(cd "$test_prefix" && pwd)
 if [ "$test_prefix" = "$T_PREFIX" ]; then
   echo "yes"
 else
@@ -66,8 +66,8 @@ else
 fi
 
 echo -n "enabled ... "
-cnt=$(echo "$status" | grep "^. status: ENABLED" | wc -l)
-if [ $cnt == 3 ]; then
+cnt=$(echo "$status" | grep -c "^. status: ENABLED")
+if [ "$cnt" == 3 ]; then
   echo "yes"
 else
   echo "NO"
@@ -129,5 +129,5 @@ if [ "$success" = yes ]; then
   exit 0
 else
   echo "one or more errors detected"
-  exit -1
+  exit 1
 fi
