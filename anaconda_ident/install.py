@@ -3,8 +3,10 @@ import os
 import stat
 import sys
 import sysconfig
-from os.path import basename, dirname, exists, join, relpath
+from os.path import abspath, basename, dirname, exists, join, relpath
 from traceback import format_exc
+
+from . import IS_CONDA_23_7_OR_NEWER
 
 # Used by the subcommand plugin that doesn't have access to the used argparse parser
 _subcommand_parser = None
@@ -249,17 +251,32 @@ def _strip(text, patch_text, old_patch_text):
     return text
 
 
+def _plugin_installed():
+    from conda.base.context import context
+    print(f"plugin active: ", end="")
+    try:
+        IS_INSTALLED = "anaconda-ident" in [hook.name for hook in context.plugin_manager.get_hook_results("pre_commands")]
+        print(f"{IS_INSTALLED} (should be: {IS_CONDA_23_7_OR_NEWER})")
+    except Exception as exc:
+        if IS_CONDA_23_7_OR_NEWER:
+            print(f"error: {exc}")
+        else:
+            print("not supported, conda too old")
+
+
 def _patch(args, pfile, patch_text, old_patch_text, safety_len):
     verbose = args.verbose or args.status
     if verbose:
-        print(f"patch target: ...{relpath(pfile, _sp_dir())}")
+        print(f"patch target: {abspath(pfile)}")
     text, status = _read(args, pfile, patch_text)
     if verbose:
         print(f"| status: {status}")
     if status == "NOT PRESENT":
         return
     enable = args.enable or args.verify
-    disable = args.disable or args.clean
+    # disable in case we want to disable, clean or are running under a newer
+    # version of conda
+    disable = args.disable or args.clean or IS_CONDA_23_7_OR_NEWER
     if status == "NEEDS UPDATE":
         need_change = True
         status = "reverting" if disable else "updating"
@@ -333,6 +350,7 @@ def manage_patch(args):
     verbose = args.verbose or args.status
     if verbose:
         print("conda prefix:", sys.prefix)
+    _plugin_installed()
     _patch_conda_context(args, verbose)
     _patch_anaconda_client(args, verbose)
     _patch_binstar_client(args, verbose)
@@ -614,8 +632,11 @@ def execute(args):
         if verbose:
             print(msg)
         return 0 if success else -1
+    # persisting the disabling to disk
+    if args.disable and IS_CONDA_23_7_OR_NEWER:
+        args.config = "none"
     newcondarc = manage_condarc(args, condarc)
-    if condarc != newcondarc:
+    if condarc != newcondarc or IS_CONDA_23_7_OR_NEWER:
         write_condarc(args, fname, newcondarc)
     elif verbose:
         print("no changes to save")

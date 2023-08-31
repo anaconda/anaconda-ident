@@ -12,7 +12,7 @@ setup(
     author_email="mcg@cvxr.com",
     url="https://github.com/Anaconda-Platform/anaconda-ident",
     packages=["anaconda_ident"],
-    install_requires=["conda"],
+    # install_requires=["conda"],
     keywords=["anaconda-ident"],
     entry_points={
         "console_scripts": [
@@ -29,5 +29,6 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
     ],
 )

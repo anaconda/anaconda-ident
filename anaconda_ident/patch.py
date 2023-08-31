@@ -17,10 +17,12 @@ from conda.base.context import (
     context,
     env_name,
 )
+from conda.gateways import anaconda_client
 from conda.cli import install as cli_install
 from conda.gateways.connection.session import CondaHttpAuth
 
-from . import __version__
+from . import __version__, IS_CONDA_23_7_OR_NEWER
+from .tokens import include_baked_tokens
 
 log = getLogger(__name__)
 
@@ -202,86 +204,108 @@ def _new_check_prefix(prefix, json=False):
     cli_install._old_check_prefix(prefix, json)
 
 
-if DEBUG:
-    print("CONDA_IDENT DEBUGGING ENABLED")
+def _new_read_binstar_tokens():
+    tokens = anaconda_client._old_read_binstar_tokens()
+    include_baked_tokens(tokens)
+    return tokens
 
-# conda.base.context.SEARCH_PATH
-# Add anaconda_ident's condarc location
-if not hasattr(c_context, "_OLD_SEARCH_PATH"):
-    sp = c_context._OLD_SEARCH_PATH = c_context.SEARCH_PATH
-    n_sys = min(k for k, v in enumerate(sp) if v.startswith("$CONDA_ROOT"))
-    c_context.SEARCH_PATH = sp[:n_sys] + (BAKED_CONDARC,) + sp[n_sys:]
 
-# Save the raw token data in Context class attributes
-# to ensure they are passed between subprocesses
-if not hasattr(Context, "client_token_raw"):
-    initialize_raw_tokens()
+def monkeypatch_anaconda_client():
+    if not hasattr(anaconda_client, "_old_read_binstar_tokens"):
+        anaconda_client._old_read_binstar_tokens = anaconda_client.read_binstar_tokens
+        anaconda_client.read_binstar_tokens = _new_read_binstar_tokens
 
-# conda.base.context.Context.user_agent
-# Adds the ident token to the user agent string
-if not hasattr(Context, "_old_user_agent"):
-    Context._old_user_agent = Context.user_agent
-    # Using a different name ensures that this is stored
-    # in sthe cache in a different place than the original
-    Context.user_agent = memoizedproperty(_new_user_agent)
 
-# conda.gateways.connection.session.CondaHttpAuth
-# Adds the X-Conda-Ident header to all conda requests
-if not hasattr(CondaHttpAuth, "_old_apply_basic_auth"):
-    CondaHttpAuth._old_apply_basic_auth = CondaHttpAuth._apply_basic_auth
-    CondaHttpAuth._apply_basic_auth = staticmethod(_new_apply_basic_auth)
+def monkeypatch():
+    if DEBUG:
+        print("CONDA_IDENT DEBUGGING ENABLED")
 
-# conda.cli.install.check_prefix
-# Collects the prefix computed there so that we can properly
-# detect the creation of environments using "conda env create"
-if not hasattr(cli_install, "_old_check_prefix"):
-    cli_install._old_check_prefix = cli_install.check_prefix
-    cli_install.check_prefix = _new_check_prefix
-    context.checked_prefix = None
+    # conda.base.context.SEARCH_PATH
+    # Add anaconda_ident's condarc location
+    if not hasattr(c_context, "_OLD_SEARCH_PATH"):
+        sp = c_context._OLD_SEARCH_PATH = c_context.SEARCH_PATH
+        n_sys = min(k for k, v in enumerate(sp) if v.startswith("$CONDA_ROOT"))
+        c_context.SEARCH_PATH = sp[:n_sys] + (BAKED_CONDARC,) + sp[n_sys:]
 
-# conda.base.context.Context
-# Adds anaconda_ident as a managed string config parameter
-if not hasattr(Context, "anaconda_ident"):
-    _param = ParameterLoader(PrimitiveParameter("default"))
-    Context.anaconda_ident = _param
-    Context.parameter_names += (_param._set_name("anaconda_ident"),)
+    # Save the raw token data in Context class attributes
+    # to ensure they are passed between subprocesses
+    if not hasattr(Context, "client_token_raw"):
+        initialize_raw_tokens()
 
-# conda.base.context.Context
-# Adds repo_tokens as a managed map config parameter
-if not hasattr(Context, "repo_tokens"):
-    _param = ParameterLoader(MapParameter(PrimitiveParameter("", str)))
-    Context.repo_tokens = _param
-    Context.parameter_names += (_param._set_name("repo_tokens"),)
+    # conda.base.context.Context.user_agent
+    # Adds the ident token to the user agent string
+    if not hasattr(Context, "_old_user_agent"):
+        Context._old_user_agent = Context.user_agent
+        # Using a different name ensures that this is stored
+        # in sthe cache in a different place than the original
+        Context.user_agent = memoizedproperty(_new_user_agent)
 
-if DEBUG:
-    print(
-        "| SEARCH_PATH:",
-        "patched" if BAKED_CONDARC in c_context.SEARCH_PATH else "UNPATCHED",
-    )
-    print(
-        "| RAW TOKEN:",
-        "loaded" if getattr(context, "client_token_raw", None) else "MISSING",
-    )
-    print(
-        "| USER AGENT:",
-        "patched" if getattr(Context, "_old_user_agent", None) else "UNPATCHED",
-    )
-    print(
-        "| CONDA_AUTH:",
-        "patched"
-        if getattr(CondaHttpAuth, "_old_apply_basic_auth", None)
-        else "UNPATCHED",
-    )
-    print(
-        "| CHECK_PREFIX:",
-        "patched" if getattr(cli_install, "_old_check_prefix", None) else "UNPATCHED",
-    )
-    print(
-        "| ANACONDA_IDENT:",
-        "patched" if hasattr(context, "anaconda_ident") else "UNPATCHED",
-    )
-    print(
-        "| REPO_TOKENS:",
-        "patched" if hasattr(context, "repo_tokens") else "UNPATCHED",
-    )
-    print("CONDA_IDENT patching completed")
+    # conda.gateways.connection.session.CondaHttpAuth
+    # Adds the X-Conda-Ident header to all conda requests
+    # TODO: Replace with conda auth-handler plugin hook in conda>=23.9
+    if not hasattr(CondaHttpAuth, "_old_apply_basic_auth"):
+        CondaHttpAuth._old_apply_basic_auth = CondaHttpAuth._apply_basic_auth
+        CondaHttpAuth._apply_basic_auth = staticmethod(_new_apply_basic_auth)
+
+    # conda.cli.install.check_prefix
+    # Collects the prefix computed there so that we can properly
+    # detect the creation of environments using "conda env create"
+    if not hasattr(cli_install, "_old_check_prefix"):
+        cli_install._old_check_prefix = cli_install.check_prefix
+        cli_install.check_prefix = _new_check_prefix
+        context.checked_prefix = None
+
+    # conda.base.context.Context
+    # Adds anaconda_ident as a managed string config parameter
+    # TODO: Replace with conda config-option plugin hook in conda>=XX.Y
+    if not hasattr(Context, "anaconda_ident"):
+        _param = ParameterLoader(PrimitiveParameter("default"))
+        Context.anaconda_ident = _param
+        Context.parameter_names += (_param._set_name("anaconda_ident"),)
+
+    # conda.base.context.Context
+    # Adds repo_tokens as a managed map config parameter
+    # TODO: Replace with conda config-option plugin hook in conda>=XX.Y
+    if not hasattr(Context, "repo_tokens"):
+        _param = ParameterLoader(MapParameter(PrimitiveParameter("", str)))
+        Context.repo_tokens = _param
+        Context.parameter_names += (_param._set_name("repo_tokens"),)
+
+    if DEBUG:
+        print(
+            "| SEARCH_PATH:",
+            "patched" if BAKED_CONDARC in c_context.SEARCH_PATH else "UNPATCHED",
+        )
+        print(
+            "| RAW TOKEN:",
+            "loaded" if getattr(context, "client_token_raw", None) else "MISSING",
+        )
+        print(
+            "| USER AGENT:",
+            "patched" if getattr(Context, "_old_user_agent", None) else "UNPATCHED",
+        )
+        print(
+            "| CONDA_AUTH:",
+            "patched"
+            if getattr(CondaHttpAuth, "_old_apply_basic_auth", None)
+            else "UNPATCHED",
+        )
+        print(
+            "| CHECK_PREFIX:",
+            "patched" if getattr(cli_install, "_old_check_prefix", None) else "UNPATCHED",
+        )
+        print(
+            "| ANACONDA_IDENT:",
+            "patched" if hasattr(context, "anaconda_ident") else "UNPATCHED",
+        )
+        print(
+            "| REPO_TOKENS:",
+            "patched" if hasattr(context, "repo_tokens") else "UNPATCHED",
+        )
+        print("CONDA_IDENT patching completed")
+
+
+# When we're not on conda 23.7.0 or newer, we're skipping the automatic
+# patching and rely on a proper conda plugin hook
+if not IS_CONDA_23_7_OR_NEWER:
+    monkeypatch()
