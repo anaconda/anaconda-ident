@@ -1,4 +1,5 @@
 import base64
+import functools
 import getpass
 import hashlib
 import os
@@ -8,7 +9,7 @@ from logging import getLogger
 from os.path import basename, exists, expanduser, join
 
 import conda.base.context as c_context
-from conda.auxlib.decorators import memoize, memoizedproperty
+from conda.auxlib.decorators import memoizedproperty
 from conda.base.context import (
     Context,
     MapParameter,
@@ -150,7 +151,7 @@ def client_token_type():
     return token_type
 
 
-@memoize
+@functools.lru_cache(maxsize=None)
 def client_token_string():
     if not hasattr(Context, "session_token"):
         initialize_raw_tokens()
