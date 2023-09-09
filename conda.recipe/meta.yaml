@@ -21,12 +21,19 @@ requirements:
     - pip
   run:
     - python>=3.6
-    - conda>=22.11.0
+    - conda>=23.7
+    - anaconda-anon-usage>=0.3.0
 
 test:
+  source_files:
+    - tests/test_config.py
+    - tests/test_keymgr.sh  # [unix]
+    - tests/config_tests.txt  # [unix]
   commands:
     - anaconda-ident --status
     - anaconda-keymgr --help
+    - PYTHONUNBUFFERED=1 python tests/test_config.py
+    - PYTHONUNBUFFERED=1 bash tests/test_keymgr.sh  # [unix]
 
 about:
   home: https://github.com/Anaconda-Platform/anaconda-ident

@@ -6,8 +6,7 @@ import sysconfig
 from os.path import basename, dirname, exists, join, relpath
 from traceback import format_exc
 
-# Used by the subcommand plugin that doesn't have access to the used argparse parser
-_subcommand_parser = None
+from . import __version__
 
 
 def configure_parser(p):
@@ -127,6 +126,7 @@ def parse_argv(args=None):
 
 
 success = True
+verbose = True
 
 
 def error(what, fatal=False, warn=False):
@@ -152,52 +152,18 @@ def tryop(op, *args, **kwargs):
         return False
 
 
-OLD_PATCH_TEXT = b"""
-try:
-    import anaconda_ident.patch
-except Exception as exc:
-    pass
-"""
-
 PATCH_TEXT = b"""
-# anaconda_ident p2
-_old__init__ = context.__init__
-def _new_init(*args, **kwargs):
-    try:
-        import anaconda_ident.patch
-    except Exception as exc:
-        import os, sys
-        print("Error loading anaconda_ident:", exc, file=sys.stderr)
-        if os.environ.get('ANACONDA_IDENT_DEBUG'):
-            raise
-    context.__init__ = _old__init__
-    _old__init__(*args, **kwargs)
-context.__init__ = _new_init
-# anaconda_ident p2
-"""
+# anaconda_ident {version}
+# The code below augments this module with functionality
+# needed by anaconda-ident.
 
-AC_PATCH_TEXT = b"""
-# anaconda_ident p3
 try:
-    import anaconda_ident.patch_ac
+    from anaconda_ident import {pname}
 except Exception as exc:
     import os, sys
     print("Error loading anaconda_ident:", exc, file=sys.stderr)
-    if os.environ.get('ANACONDA_IDENT_DEBUG'):
+    if os.environ.get('ANACONDA_IDENT_RAISE'):
         raise
-# anaconda_ident p3
-"""
-
-BS_PATCH_TEXT = b"""
-# anaconda_ident p3
-try:
-    import anaconda_ident.patch_bc
-except Exception as exc:
-    import os, sys
-    print("Error loading anaconda_ident:", exc, file=sys.stderr)
-    if os.environ.get('ANACONDA_IDENT_DEBUG'):
-        raise
-# anaconda_ident p3
 """
 
 __sp_dir = None
@@ -223,8 +189,7 @@ def _read(args, pfile, patch_text):
         return None, "NOT PRESENT"
     with open(pfile, "rb") as fp:
         text = fp.read()
-    patch_text = _eolmatch(text, patch_text)
-    if text.endswith(patch_text):
+    if patch_text and text.endswith(_eolmatch(text, patch_text)):
         status = "ENABLED"
     elif b"anaconda_ident" in text:
         status = "NEEDS UPDATE"
@@ -233,33 +198,42 @@ def _read(args, pfile, patch_text):
     return text, status
 
 
-def _strip(text, patch_text, old_patch_text):
-    found = False
-    patch_text = _eolmatch(text, patch_text)
-    if text.endswith(patch_text):
-        text = text[: -len(patch_text)]
-        found = True
-    if old_patch_text:
-        old_patch_text = _eolmatch(text, old_patch_text)
-        if text.endswith(old_patch_text):
-            text = text[: -len(old_patch_text)]
-            found = True
-    if not found and b"# anaconda_ident " in text:
-        text = text[: text.find(b"# anaconda_ident p")]
+def _strip_patch(text):
+    if b"# anaconda_ident " in text:
+        return text[: text.find(b"# anaconda_ident ")]
+    if b"anaconda_ident" in text:
+        # The very first patch code:
+        # try:
+        #     import anaconda_ident.patch
+        # ...
+        ndx1 = text.find("anaconda_ident")
+        ndx2 = text[:ndx1].rfind("try:")
+        buffer = text[ndx2:ndx1].replace("\r", "").replace("\n", "").replace(" ", "")
+        if buffer == "try:import":
+            return text[:ndx2]
+        error("! failed to strip patch, no changes made", fatal=True)
     return text
 
 
-def _patch(args, pfile, patch_text, old_patch_text, safety_len):
+def _patch(args, pfile, pname):
+    global PATCH_TEXT
     verbose = args.verbose or args.status
     if verbose:
         print(f"patch target: ...{relpath(pfile, _sp_dir())}")
+    if pname:
+        patch_text = PATCH_TEXT.replace(b"{version}", __version__.encode("ascii"))
+        patch_text = patch_text.replace(b"{pname}", pname.encode("ascii"))
+    else:
+        patch_text = None
     text, status = _read(args, pfile, patch_text)
+    if status == "DISABLED" and not patch_text:
+        status = "NOT REQUIRED"
     if verbose:
         print(f"| status: {status}")
-    if status == "NOT PRESENT":
+    if status.startswith("NOT"):
         return
-    enable = args.enable or args.verify
-    disable = args.disable or args.clean
+    enable = (args.enable or args.verify) and patch_text
+    disable = args.disable or args.clean or not patch_text
     if status == "NEEDS UPDATE":
         need_change = True
         status = "reverting" if disable else "updating"
@@ -277,11 +251,7 @@ def _patch(args, pfile, patch_text, old_patch_text, safety_len):
         print(f"| {status} patch...", end="")
     renamed = False
     try:
-        text = _strip(text, patch_text, old_patch_text)
-        # safety valve
-        if len(text) < safety_len:
-            print("safety check failed")
-            error("! unexpected error, no changes made", fatal=True)
+        text = _strip_patch(text)
         # We do not append to the original file because this is
         # likely a hard link into the package cache, so doing so
         # would lead to conda flagging package corruption.
@@ -311,22 +281,18 @@ def _patch(args, pfile, patch_text, old_patch_text, safety_len):
 
 
 def _patch_conda_context(args, verbose):
-    global OLD_PATCH_TEXT
-    global PATCH_TEXT
     pfile = join(_sp_dir(), "conda", "base", "context.py")
-    _patch(args, pfile, PATCH_TEXT, OLD_PATCH_TEXT, 70000)
+    _patch(args, pfile, "patch")
 
 
 def _patch_anaconda_client(args, verbose):
-    global AC_PATCH_TEXT
     acfile = join(_sp_dir(), "conda", "gateways", "anaconda_client.py")
-    _patch(args, acfile, AC_PATCH_TEXT, None, 2000)
+    _patch(args, acfile, "patch_ac")
 
 
 def _patch_binstar_client(args, verbose):
-    global BS_PATCH_TEXT
     bfile = join(_sp_dir(), "binstar_client", "utils", "config.py")
-    _patch(args, bfile, BS_PATCH_TEXT, None, 9000)
+    _patch(args, bfile, "patch_bc")
 
 
 def manage_patch(args):
@@ -580,13 +546,6 @@ def execute(args):
     the result to integration into the conda subcommand plugin API
     """
     global success
-
-    # if a conda>=23.7.0 subcommand plugin is configuring the subcommand parser,
-    # we're storing the instance in a module variable, so we can print the help
-    # if there are no command line options passed
-    if _subcommand_parser is not None and len(sys.argv) <= 2:
-        _subcommand_parser.print_help()
-        return 0
 
     verbose = args.verbose or args.status or len(sys.argv) <= 1
     if verbose:

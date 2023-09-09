@@ -2,13 +2,16 @@ import os
 import subprocess
 import sys
 
+from anaconda_anon_usage import __version__ as aau_version
 from conda.base.context import context
 
-from anaconda_ident import __version__, patch
+from anaconda_ident import __version__ as aid_version
+from anaconda_ident import patch as patch
 
 context.__init__()
 
 os.environ["ANACONDA_IDENT_DEBUG"] = "1"
+os.environ["ANACONDA_ANON_USAGE_DEBUG"] = "1"
 
 print("Environment variables:")
 print("-----")
@@ -105,28 +108,37 @@ if not success:
 # part of the code, with the exception of "baked" test below.
 test_patterns = (
     ("none", ""),
-    ("default", "cse"),
-    ("username", "cseu"),
-    ("hostname", "cseh"),
-    ("environment", "csen"),
-    ("userenv", "cseun"),
-    ("userhost", "cseuh"),
-    ("hostenv", "csehn"),
-    ("full", "cseuhn"),
-    ("default:org1", "cseo"),
-    ("full:org2", "cseuhno"),
-    (":org3", "cseo"),
+    ("default", ""),
+    ("username", "u"),
+    ("hostname", "h"),
+    ("environment", "n"),
+    ("userenv", "un"),
+    ("userhost", "uh"),
+    ("hostenv", "hn"),
+    ("full", "uhn"),
+    ("default:org1", "o"),
+    ("full:org2", "uhno"),
+    (":org3", "o"),
     ("none:org4", "o"),
     ("c", "c"),
     ("s", "s"),
+    ("e", "e"),
     ("u", "u"),
     ("h", "h"),
-    ("e", "e"),
     ("n", "n"),
     ("o:org4", "o"),
     ("o", ""),
 )
-flags = ("", "--disable", "--enable")
+all_fields = {"aau", "aid", "c", "s", "e", "u", "h", "n", "o"}
+states = (
+    (True, True),
+    (False, True),
+    (True, True),
+    (True, False),
+    (False, False),
+    (True, False),
+    (True, True),
+)
 
 test_org = None
 if config_env:
@@ -135,43 +147,59 @@ if config_env:
     if "o" not in fmt and ":" in config_baked:
         fmt += "o"
     test_patterns = [(config_baked, fmt)]
-    flags = ("--enable", "--disable", "--enable")
     print("test_patterns:", test_patterns)
-skip_install = bool(os.environ.get("SKIP_INSTALL"))
 
 nfailed = 0
-saved_values = {}
+saved_values = {"aau": aau_version, "aid": aid_version}
 all_session_tokens = set()
-max_param = max(max(len(x) for x, _ in test_patterns), len("config"))
+max_anon = len("anon")
+max_param = max(max(len(x) for x, _ in test_patterns), len("ident"))
 max_field = max(max(len(x) for _, x in test_patterns), len("fields"))
-for flag in flags:
-    if flag:
+
+id_last = False
+need_header = True
+for aau_state, id_state in states:
+    os.environ["CONDA_ANACONDA_ANON_USAGE"] = "on" if aau_state else "off"
+    if id_state != id_last:
+        id_last = id_state
+        flag = "--enable" if id_state else "--disable"
         print("")
-        print("----")
         p = subprocess.run(
             ["python", "-m", "anaconda_ident.install", flag], capture_output=True
         )
         print(p.stdout.decode("utf-8"))
-        print("----")
+        need_header = True
+    if need_header:
+        need_header = False
         print("")
-    is_enabled = flag != "--disable"
-    print(
-        "{:{w1}} {:{w2}} ?? token values".format(
-            "config", "fields", w1=max_param, w2=max_field
-        )
-    )
-    print("{} {} -- ----------".format("-" * max_param, "-" * max_field))
-    for param, test_fields in test_patterns:
         print(
-            "{:{w1}} {:{w2}} ".format(param, test_fields, w1=max_param, w2=max_field),
+            "{:{w0}} {:{w1}} {:{w2}} ?? token values".format(
+                "anon", "ident", "fields", w0=max_anon, w1=max_param, w2=max_field
+            )
+        )
+        print(
+            "{} {} {} -- ----------".format(
+                "-" * max_anon, "-" * max_param, "-" * max_field
+            )
+        )
+    anon_flag = "T" if aau_state else "F"
+    for param, test_fields in test_patterns:
+        saved_values["o"] = param.split(":", 1)[-1] if ":" in param else ""
+        os.environ["CONDA_ANACONDA_IDENT"] = param
+        expected = ["c", "s", "e"] if aau_state else []
+        if id_state:
+            expected.extend(f for f in test_fields if f not in expected)
+        test_fields = "".join(expected)
+        if aau_state or id_state:
+            expected.append("aau")
+        if id_state:
+            expected.append("aid")
+        print(
+            "{:{w0}} {:{w1}} {:{w2}} ".format(
+                anon_flag, param, test_fields, w0=max_anon, w1=max_param, w2=max_field
+            ),
             end="",
         )
-        test_fields = "i" + test_fields
-        if not skip_install:
-            subprocess.run(
-                ["python", "-m", "anaconda_ident.install", "--config", param],
-                capture_output=True,
-            )
         # Make sure to leave override-channels and the full channel URL in here.
         # This allows this command to run fully no matter what we do to channel_alias
         # and default_channels
@@ -189,41 +217,35 @@ for flag in flags:
             text=True,
         )
         user_agent = [v for v in proc.stderr.splitlines() if "User-Agent" in v]
-        header = [v for v in proc.stderr.splitlines() if "X-Anaconda-Ident" in v]
         user_agent = user_agent[0].split(":", 1)[-1].strip() if user_agent else ""
-        header = header[0].split(": ", 1)[-1].strip() if header else ""
-        assert user_agent.endswith(header), (user_agent, header)
-        if is_enabled:
-            new_values = {token[0]: token for token in header.split(" ") if token}
-            # Confirm that all of the expected tokens are present
-            failed = set(new_values) != set(test_fields)
-            # Confirm that if the org token, if present, matches the provided value
-            if not failed and "o" in new_values:
-                failed = new_values["o"][2:] != param.rsplit(":", 1)[-1]
-            # Confirm that the session token, if present, is unique
-            if "s" in new_values:
-                failed = failed or new_values["s"] in all_session_tokens
+        new_values = [token.split("/", 1) for token in user_agent.split(" ")]
+        new_values = {k: v for k, v in new_values if k in all_fields}
+        header = " ".join(f"{k}/{v}" for k, v in new_values.items())
+        # Confirm that all of the expected tokens are present
+
+        missing = set(expected) - set(new_values)
+        extras = set(new_values) - set(expected)
+        status = []
+        if missing:
+            status.append(f"{','.join(missing)} MISSING")
+        if extras:
+            status.append(f"{','.join(extras)} EXTRA")
+        conflicts = []
+        for k, v in new_values.items():
+            if k == "s":
+                if new_values["s"] in all_session_tokens:
+                    status.append("SESSION")
                 all_session_tokens.add(new_values["s"])
-            if "i" in new_values:
-                failed = failed or new_values["i"] != f"ident/{__version__}"
-            # Confirm that any values besides session and org do not change from run to run
-            if not failed:
-                failed = any(
-                    v != saved_values.setdefault(k, v)
-                    for k, v in new_values.items()
-                    if k not in "so"
-                )
-        else:
-            failed = len(header) > 0
-        print("XX" if failed else "OK", header)
-        nfailed += failed
-        if not skip_install:
-            subprocess.run(
-                ["python", "-m", "anaconda_ident.install", "--config", ""],
-                capture_output=True,
-            )
-        if failed and "--fast" in sys.argv:
-            sys.exit(1)
+            elif saved_values.setdefault(k, v) != v:
+                conflicts.append(k)
+        if conflicts:
+            status.append(f"{','.join(conflicts)} CONFLICT")
+        status = ", ".join(status)
+        print("XX" if status else "OK", header, status)
+        if status:
+            nfailed += 1
+            if "--fast" in sys.argv:
+                sys.exit(1)
 
 
 print("FAILURES:", nfailed)
