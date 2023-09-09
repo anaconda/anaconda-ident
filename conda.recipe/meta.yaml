@@ -22,7 +22,7 @@ requirements:
   run:
     - python>=3.6
     - conda>=23.7
-    - anaconda-anon-usage>=0.3.0
+    - anaconda-anon-usage>=0.4
 
 test:
   source_files:

@@ -4,11 +4,29 @@ import sys
 
 from anaconda_anon_usage import __version__ as aau_version
 from conda.base.context import context
+from conda.models.channel import Channel
 
 from anaconda_ident import __version__ as aid_version
 from anaconda_ident import patch as patch
 
 context.__init__()
+
+
+def get_config_value(key, subkey=None):
+    """
+    Why not just do getattr(context, key)? Well, we actually want
+    to know *where* the config value is set
+    """
+    result = getattr(context, key)
+    if subkey is not None:
+        result = getattr(result, subkey)
+    for loc, rdict in context.raw_data.items():
+        if key in rdict:
+            break
+    else:
+        loc = None
+    return result, loc
+
 
 os.environ["ANACONDA_IDENT_DEBUG"] = "1"
 os.environ["ANACONDA_ANON_USAGE_DEBUG"] = "1"
@@ -34,52 +52,45 @@ print("-----")
 # Verify baked configurations, if any
 success = True
 config_env = os.environ.get("CONFIG_STRING") or ""
-config_baked, _ = patch.get_config_value("anaconda_ident")
-if not config_env and config_baked is not None:
-    print("Unexpected baked configuration:", config_baked)
-    success = False
-elif config_env and config_baked != config_env:
-    print(
-        "Baked config mismatch:\n - expected: %s\n - found: %s"
-        % (config_env, config_baked)
-    )
-    success = False
-elif config_env:
-    print("Running with baked configuration:", config_env)
+config_baked = context.anaconda_ident
+if config_env:
+    if config_baked != config_env:
+        print(
+            "Baked configuration mismatch:\n - expected: %s\n - found: %s"
+            % (config_env, config_baked)
+        )
+        success = False
+    else:
+        print("Baked configuration:", config_env)
 
-defchan_baked, _ = patch.get_config_value("default_channels")
-defchan_env_s = os.environ.get("DEFAULT_CHANNELS") or ""
-defchan_env = [c.rstrip("/") for c in defchan_env_s.split(",")] if defchan_env_s else []
-if not defchan_env_s and defchan_baked:
-    print("Unexpected baked default channels:", defchan_baked)
-    success = False
-elif defchan_env_s and defchan_env != defchan_baked:
-    print(
-        "Baked default channels mismatch:\n - expected: %s\n - found: %s"
-        % (defchan_env, defchan_baked)
-    )
-    success = False
-elif defchan_env:
-    print("Baked default channels:", defchan_env)
+calias_env = (os.environ.get("CHANNEL_ALIAS") or "").rstrip("/")
+calias_baked = context.channel_alias.base_url
+if calias_env:
+    if calias_env != calias_baked:
+        print(
+            "Baked channel alias mismatch:\n - expected: %s\n - found: %s"
+            % (calias_env, calias_baked)
+        )
+        success = False
+    else:
+        print("Baked channel alias:", calias_env)
 
-calias_baked, _ = patch.get_config_value("channel_alias")
-calias_env = os.environ.get("CHANNEL_ALIAS") or ""
-if not calias_env and calias_baked is not None:
-    print("Unexpected baked channel alias:", calias_baked)
-    success = False
-elif calias_env and calias_env != calias_baked:
-    print(
-        "Baked channel alias mismatch:\n - expected: %s\n - found: %s"
-        % (calias_env, calias_baked)
-    )
-    success = False
-elif calias_env:
-    print("Baked channel alias:", calias_env)
+defchan_env = os.environ.get("DEFAULT_CHANNELS") or ""
+defchan_env = [c for c in defchan_env.split(",")] if defchan_env else []
+defchan_baked = [c.base_url for c in context.default_channels]
+if defchan_env:
+    if [Channel(c).base_url for c in defchan_env] != defchan_baked:
+        print(
+            "Baked default channels mismatch:\n - expected: %s\n - found: %s"
+            % (defchan_env, defchan_baked)
+        )
+        success = False
+    else:
+        print("Baked default channels:", defchan_env)
 
 # In a "baked" configuration, the client token config is
 # hardcoded into the package itself
-token_baked, _ = patch.get_config_value("repo_tokens")
-token_baked = dict(token_baked or {})
+token_baked = dict(context.repo_tokens)
 token_env = os.environ.get("REPO_TOKEN") or ""
 if token_env:
     token_chan = [c for c in defchan_env + [calias_env] if c and "/" in c]
@@ -120,9 +131,6 @@ test_patterns = (
     ("full:org2", "uhno"),
     (":org3", "o"),
     ("none:org4", "o"),
-    ("c", "c"),
-    ("s", "s"),
-    ("e", "e"),
     ("u", "u"),
     ("h", "h"),
     ("n", "n"),
@@ -186,12 +194,12 @@ for aau_state, id_state in states:
     for param, test_fields in test_patterns:
         saved_values["o"] = param.split(":", 1)[-1] if ":" in param else ""
         os.environ["CONDA_ANACONDA_IDENT"] = param
-        expected = ["c", "s", "e"] if aau_state else []
         if id_state:
-            expected.extend(f for f in test_fields if f not in expected)
-        test_fields = "".join(expected)
-        if aau_state or id_state:
-            expected.append("aau")
+            test_fields = "cse" + test_fields
+        else:
+            test_fields = "cse" if aau_state else ""
+        expected = list(test_fields)
+        expected.append("aau")
         if id_state:
             expected.append("aid")
         print(
