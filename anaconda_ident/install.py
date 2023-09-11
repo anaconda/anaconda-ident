@@ -3,14 +3,16 @@ import os
 import stat
 import sys
 import sysconfig
-from os.path import basename, dirname, exists, join, relpath
+from os.path import dirname, exists, join, relpath
 from traceback import format_exc
 
 from . import __version__
 
+success = True
 
-def configure_parser(p):
-    """Configure the given argparse parser instance"""
+
+def parse_argv():
+    p = argparse.ArgumentParser()
     g = p.add_mutually_exclusive_group()
     g.add_argument(
         "--enable",
@@ -102,20 +104,8 @@ def configure_parser(p):
         "--ignore-missing", action="store_true", default=None, help=argparse.SUPPRESS
     )
 
-
-def parse_argv(args=None):
-    p = argparse.ArgumentParser(description="The anaconda-ident installer.")
-
-    # We're separating parser configuration here as it enables us to re-use
-    # the code to configure the subcommand parser in conda>=23.7.0 style subcommands
-    configure_parser(p)
-
-    # args is None when it's being called as anaconda-ident, and it's populated
-    # when called from the conda subcommand, we don't need to update sys.argv then
-    if args is None:
-        sys.argv[0] = "anaconda-ident"
-
-    args = p.parse_args(args)
+    sys.argv[0] = "anaconda-ident"
+    args = p.parse_args()
 
     if (args.clean or args.verify or args.status) and sum(
         v is not None for v in vars(args).values()
@@ -123,10 +113,6 @@ def parse_argv(args=None):
         what = "clean" if args.clean else ("status" if args.status else "verify")
         print("WARNING: --%s overrides other operations" % what)
     return args, p
-
-
-success = True
-verbose = True
 
 
 def error(what, fatal=False, warn=False):
@@ -280,28 +266,27 @@ def _patch(args, pfile, pname):
         print(f"| new status: {status}")
 
 
-def _patch_conda_context(args, verbose):
+def _patch_conda_context(args):
     pfile = join(_sp_dir(), "conda", "base", "context.py")
     _patch(args, pfile, "patch")
 
 
-def _patch_anaconda_client(args, verbose):
+def _patch_anaconda_client(args):
     acfile = join(_sp_dir(), "conda", "gateways", "anaconda_client.py")
     _patch(args, acfile, "patch_ac")
 
 
-def _patch_binstar_client(args, verbose):
+def _patch_binstar_client(args):
     bfile = join(_sp_dir(), "binstar_client", "utils", "config.py")
     _patch(args, bfile, "patch_bc")
 
 
 def manage_patch(args):
-    verbose = args.verbose or args.status
-    if verbose:
+    if args.verbose or args.status:
         print("conda prefix:", sys.prefix)
-    _patch_conda_context(args, verbose)
-    _patch_anaconda_client(args, verbose)
-    _patch_binstar_client(args, verbose)
+    _patch_conda_context(args)
+    _patch_anaconda_client(args)
+    _patch_binstar_client(args)
 
 
 __yaml = None
@@ -388,6 +373,7 @@ def read_condarc(args, fname):
 
 
 def manage_condarc(args, condarc):
+    verbose = args.verbose or args.status
     if args.clean:
         return {}
     condarc = condarc.copy()
@@ -418,7 +404,7 @@ def manage_condarc(args, condarc):
             ]
             defchan = [c for c in defchan if "/" in c]
             if not defchan:
-                if args.verbose:
+                if verbose:
                     print("------------------------")
                 error(
                     "A repo_token value may only be supplied if accompanied\n"
@@ -434,14 +420,15 @@ def manage_condarc(args, condarc):
 
 
 def write_condarc(args, fname, condarc):
+    verbose = args.verbose or args.status
     if not condarc:
         if exists(fname):
-            if args.verbose:
+            if verbose:
                 print("removing anaconda_ident condarc...")
             if not tryop(os.unlink, fname):
                 error("condarc removal failed")
         return
-    if args.verbose:
+    if verbose:
         what = "updating" if exists(fname) else "creating"
         print("%s anaconda_ident condarc..." % what)
     renamed = False
@@ -461,9 +448,10 @@ def write_condarc(args, fname, condarc):
 
 def modify_binstar(args, condarc, save=True):
     global success
+    verbose = args.verbose or args.status
     new_tokens = condarc.get("repo_tokens")
     if not new_tokens:
-        if args.verbose:
+        if verbose:
             print("no tokens to write or clear")
         return
 
@@ -488,7 +476,7 @@ def modify_binstar(args, condarc, save=True):
             old_url = a_client.unquote_plus(fname[:-6])
             if not old_url.startswith(url):
                 continue
-            if args.verbose:
+            if verbose:
                 print("removing existing token:", old_url)
             old_tokens.remove(fname)
             fpath = join(token_dir, fname)
@@ -513,7 +501,7 @@ def modify_binstar(args, condarc, save=True):
         # with navigator and conda-token
         if url == "https://repo.anaconda.cloud/":
             url += "repo/"
-        if args.verbose:
+        if verbose:
             print("installing token:", url)
         fname = a_client.quote_plus(url) + ".token"
         fpath = join(token_dir, fname)
@@ -540,24 +528,25 @@ def modify_binstar(args, condarc, save=True):
                 error("token installation failed", warn=True)
 
 
-def execute(args):
+def main():
+    args, p = parse_argv()
+    if len(sys.argv) <= 1:
+        p.print_help()
+        return 0
+
     """
     This is just the CLI execution after parsing and before returning of
     the result to integration into the conda subcommand plugin API
     """
     global success
+    verbose = args.verbose or args.status
 
-    verbose = args.verbose or args.status or len(sys.argv) <= 1
     if verbose:
-        pkg_name = basename(dirname(__file__))
-        msg = pkg_name + " installer"
+        msg = "anaconda-ident installer"
+        line = "-" * len(msg)
+        print(line)
         print(msg)
-        msg = "-" * len(msg)
-        print(msg)
-        if len(sys.argv) <= 1:
-            sys.argv[0] = "anaconda-ident"
-            print(msg)
-            return 0
+        print(line)
     manage_patch(args)
     if args.verify:
         if verbose:
@@ -567,11 +556,11 @@ def execute(args):
     condarc = read_condarc(args, fname)
     if not success:
         if verbose:
-            print(msg)
+            print(line)
         return -1
     if args.status or len(sys.argv) <= 1 + ("--quiet" in sys.argv):
         if verbose:
-            print(msg)
+            print(line)
         return 0 if success else -1
     newcondarc = manage_condarc(args, condarc)
     if condarc != newcondarc:
@@ -581,26 +570,7 @@ def execute(args):
     if args.write_token or args.clear_old_token:
         modify_binstar(args, newcondarc, save=args.write_token)
     if verbose:
-        print(msg)
-
-
-def main(args=None):
-    global success
-
-    # if conda passes us pre-parsed args, we have to reuse them for
-    # the conda subcommand integration
-    args, p = parse_argv(args)
-
-    # we're checking for conda or conda.exe for old-style conda subcommands
-    if len(sys.argv) <= 1 or (
-        basename(sys.argv[0]).lower() in ("conda", "conda.exe") and len(sys.argv) <= 2
-    ):
-        p.print_help()
-        return 0
-
-    # we separate execution here to be able to hook into the conda subcommand plugin API
-    execute(args)
-
+        print(line)
     return 0 if success else -1
 
 

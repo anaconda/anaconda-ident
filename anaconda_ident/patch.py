@@ -1,11 +1,13 @@
 import getpass
 import platform
 import sys
+from os import environ
 from os.path import basename, join
 
 import conda.base.context as c_context
 from anaconda_anon_usage import patch as aau_patch
 from anaconda_anon_usage import tokens
+from anaconda_anon_usage import utils as aau_utils
 from anaconda_anon_usage.utils import _debug, cached
 from conda.base.context import (
     Context,
@@ -19,6 +21,16 @@ from conda.base.context import (
 from . import __version__
 
 BAKED_CONDARC = join(sys.prefix, "etc", "anaconda_ident.yml")
+
+# Provide ANACONDA_IDENT_DEBUG and ANACONDA_IDENT_DEBUG_PREFIX
+# as synonyms to their a-a-u equivalents. *_DEBUG enables debug
+# logging of course; _PREFIX does so as well but prepends the
+# given string to each debug log value.
+DPREFIX = environ.get("ANACONDA_IDENT_DEBUG_PREFIX") or ""
+DEBUG = environ.get("ANACONDA_IDENT_DEBUG") or DPREFIX
+if DEBUG:
+    aau_utils.DPREFIX = aau_utils.DPREFIX or DPREFIX
+    aau_utils.DEBUG = True
 
 
 _client_token_formats = {
@@ -58,30 +70,28 @@ def get_hostname():
 def client_token_type():
     token_type = context.anaconda_ident
     _debug("Token config from context: %s", token_type)
-    fmt_parts = token_type.split(":", 1)
-    fmt = _client_token_formats.get(fmt_parts[0], fmt_parts[0])
-    if len(fmt_parts) > 1:
-        if not fmt and fmt_parts[0] != "none":
-            fmt = "o"
-        elif "o" not in fmt:
-            fmt += "o"
-    elif "o" in fmt:
+    if ":" in token_type:
+        token_type, org = token_type.split(":", 1)
+    else:
+        org = ""
+    fmt = _client_token_formats.get(token_type, token_type)
+    _debug("Preliminary usage tokens: %s", fmt)
+    if org and "o" not in fmt:
+        _debug("Organization string provided; adding o to format")
+        fmt += "o"
+    elif not org and "o" in fmt:
         _debug("Expected an organization string; none provided.")
         fmt = fmt.replace("o", "")
-    _debug("Preliminary usage tokens: %s", fmt)
-    fmt = "cse" + fmt
-    fmt_parts[0] = "".join(dict.fromkeys(c for c in fmt if c in "cseuhon"))
-    token_type = ":".join(fmt_parts)
-    _debug("Final token config: %s", token_type)
-    return token_type
+    fmt = "cse" + "".join(dict.fromkeys(c for c in fmt if c in "uhon"))
+    _debug("Final token config: %s %s", fmt, org)
+    return fmt, org
 
 
 @cached
 def client_token_string():
     parts = ["aau/" + tokens.version_token(), "aid/" + __version__]
-    token_type = client_token_type()
-    fmt_parts = token_type.split(":", 1)
-    for code in fmt_parts[0]:
+    fmt, org = client_token_type()
+    for code in fmt:
         value = None
         if code == "c":
             value = tokens.client_token()
@@ -94,7 +104,7 @@ def client_token_string():
         elif code == "h":
             value = get_hostname()
         elif code == "o":
-            value = fmt_parts[1]
+            value = org
         elif code == "n":
             value = get_environment_name()
         else:

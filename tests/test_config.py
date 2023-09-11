@@ -28,26 +28,22 @@ def get_config_value(key, subkey=None):
     return result, loc
 
 
-os.environ["ANACONDA_IDENT_DEBUG"] = "1"
-os.environ["ANACONDA_ANON_USAGE_DEBUG"] = "1"
-
 print("Environment variables:")
 print("-----")
 print("CONFIG_STRING:", os.environ.get("CONFIG_STRING") or "")
 print("DEFAULT_CHANNELS:", os.environ.get("DEFAULT_CHANNELS") or "")
 print("CHANNEL_ALIAS:", os.environ.get("CHANNEL_ALIAS") or "")
 print("REPO_TOKEN:", os.environ.get("REPO_TOKEN") or "")
-print("SKIP_INSTALL:", os.environ.get("SKIP_INSTALL") or False)
 print("ANACONDA_IDENT_DEBUG:", os.environ.get("ANACONDA_IDENT_DEBUG") or "")
+print("ANACONDA_ANON_USAGE_DEBUG:", os.environ.get("ANACONDA_ANON_USAGE_DEBUG") or "")
 print("-----")
 p = subprocess.run(
-    ["python", "-m", "anaconda_ident.install", "--status"], capture_output=True
+    ["python", "-m", "conda", "info"],
+    capture_output=True,
+    check=True,
+    stdin=subprocess.DEVNULL,
 )
 print(p.stdout.decode("utf-8").strip())
-print("-----")
-p = subprocess.run(["python", "-m", "conda", "info"], capture_output=True)
-print(p.stdout.decode("utf-8").strip())
-print("-----")
 
 # Verify baked configurations, if any
 success = True
@@ -118,6 +114,7 @@ if not success:
 # I'm hardcoding them here so the test doesn't depend on that
 # part of the code, with the exception of "baked" test below.
 test_patterns = (
+    ("full:org1", "uhno"),
     ("none", ""),
     ("default", ""),
     ("username", "u"),
@@ -127,8 +124,7 @@ test_patterns = (
     ("userhost", "uh"),
     ("hostenv", "hn"),
     ("full", "uhn"),
-    ("default:org1", "o"),
-    ("full:org2", "uhno"),
+    ("default:org2", "o"),
     (":org3", "o"),
     ("none:org4", "o"),
     ("u", "u"),
@@ -160,9 +156,6 @@ if config_env:
 nfailed = 0
 saved_values = {"aau": aau_version, "aid": aid_version}
 all_session_tokens = set()
-max_anon = len("anon")
-max_param = max(max(len(x) for x, _ in test_patterns), len("ident"))
-max_field = max(max(len(x) for _, x in test_patterns), len("fields"))
 
 id_last = False
 need_header = True
@@ -171,25 +164,11 @@ for aau_state, id_state in states:
     if id_state != id_last:
         id_last = id_state
         flag = "--enable" if id_state else "--disable"
-        print("")
         p = subprocess.run(
             ["python", "-m", "anaconda_ident.install", flag], capture_output=True
         )
-        print(p.stdout.decode("utf-8"))
+        print(p.stdout.decode("utf-8").strip())
         need_header = True
-    if need_header:
-        need_header = False
-        print("")
-        print(
-            "{:{w0}} {:{w1}} {:{w2}} ?? token values".format(
-                "anon", "ident", "fields", w0=max_anon, w1=max_param, w2=max_field
-            )
-        )
-        print(
-            "{} {} {} -- ----------".format(
-                "-" * max_anon, "-" * max_param, "-" * max_field
-            )
-        )
     anon_flag = "T" if aau_state else "F"
     for param, test_fields in test_patterns:
         saved_values["o"] = param.split(":", 1)[-1] if ":" in param else ""
@@ -202,12 +181,6 @@ for aau_state, id_state in states:
         expected.append("aau")
         if id_state:
             expected.append("aid")
-        print(
-            "{:{w0}} {:{w1}} {:{w2}} ".format(
-                anon_flag, param, test_fields, w0=max_anon, w1=max_param, w2=max_field
-            ),
-            end="",
-        )
         # Make sure to leave override-channels and the full channel URL in here.
         # This allows this command to run fully no matter what we do to channel_alias
         # and default_channels
@@ -226,7 +199,7 @@ for aau_state, id_state in states:
         )
         user_agent = [v for v in proc.stderr.splitlines() if "User-Agent" in v]
         user_agent = user_agent[0].split(":", 1)[-1].strip() if user_agent else ""
-        new_values = [token.split("/", 1) for token in user_agent.split(" ")]
+        new_values = [t.split("/", 1) for t in user_agent.split(" ") if "/" in t]
         new_values = {k: v for k, v in new_values if k in all_fields}
         header = " ".join(f"{k}/{v}" for k, v in new_values.items())
         # Confirm that all of the expected tokens are present
@@ -249,7 +222,14 @@ for aau_state, id_state in states:
         if conflicts:
             status.append(f"{','.join(conflicts)} CONFLICT")
         status = ", ".join(status)
-        print("XX" if status else "OK", header, status)
+        if need_header:
+            need_header = False
+            print("|", header)
+            print("anon    ident     fields  status")
+            print("---- ------------ ------- ------")
+        print(f"{anon_flag:4} {param:12} {test_fields:7} {status or 'OK'}")
+        if status:
+            print("|", header)
         if status:
             nfailed += 1
             if "--fast" in sys.argv:
