@@ -6,6 +6,8 @@ import sysconfig
 from os.path import dirname, exists, join, relpath
 from traceback import format_exc
 
+from conda import __version__ as c_version  # noqa
+
 from . import __version__
 
 success = True
@@ -266,9 +268,14 @@ def _patch(args, pfile, pname):
         print(f"| new status: {status}")
 
 
-def _patch_conda_context(args):
+def _patch_conda_context(args, force_disable=False):
     pfile = join(_sp_dir(), "conda", "base", "context.py")
-    _patch(args, pfile, "patch")
+    _patch(args, pfile, None if force_disable else "patch")
+
+
+def _patch_anon_usage(args, force_disable=False):
+    pfile = join(_sp_dir(), "anaconda_anon_usage", "patch.py")
+    _patch(args, pfile, None if force_disable else "patch")
 
 
 def _patch_anaconda_client(args):
@@ -282,9 +289,17 @@ def _patch_binstar_client(args):
 
 
 def manage_patch(args):
+    global c_version
     if args.verbose or args.status:
         print("conda prefix:", sys.prefix)
-    _patch_conda_context(args)
+        print("conda version:", c_version)
+    c_version = tuple(map(int, c_version.split(".", 2)[:2]))
+    if c_version >= (23, 7):
+        _patch_conda_context(args)
+        _patch_anon_usage(args, True)
+    else:
+        _patch_conda_context(args, True)
+        _patch_anon_usage(args)
     _patch_anaconda_client(args)
     _patch_binstar_client(args)
 
