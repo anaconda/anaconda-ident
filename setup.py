@@ -12,15 +12,12 @@ setup(
     author_email="mcg@cvxr.com",
     url="https://github.com/Anaconda-Platform/anaconda-ident",
     packages=["anaconda_ident"],
-    install_requires=["conda"],
+    install_requires=["conda", "anaconda-anon-usage"],
     keywords=["anaconda-ident"],
     entry_points={
         "console_scripts": [
             "anaconda-ident = anaconda_ident.install:main",
             "anaconda-keymgr = anaconda_ident.keymgr:main",
-        ],
-        "conda": [
-            "anaconda-ident-plugin = anaconda_ident.plugin",
         ],
     },
     classifiers=[

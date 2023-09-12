@@ -9,9 +9,9 @@ def get_baked_tokens():
 
             # When importing the context module outside of
             # conda, the context object will not be initialized.
-            # We detect this by looking for our patched value
-            # of repo_tokens. If it is not there, initialize
-            if not hasattr(context, "repo_tokens"):
+            # We detect this by looking for evidence that
+            # anaconda_anon_usage has fully loaded
+            if not getattr(context, "_aau_initialized", False):
                 context.__init__()
             _baked_tokens = context.repo_tokens
         except Exception:
