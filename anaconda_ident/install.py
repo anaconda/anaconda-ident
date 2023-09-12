@@ -10,6 +10,7 @@ from conda import __version__ as c_version  # noqa
 
 from . import __version__
 
+PATCH_VERSION = tuple(map(int, c_version.split(".", 2)[:2])) < (23, 7)
 success = True
 
 
@@ -188,8 +189,8 @@ def _read(args, pfile, patch_text):
 
 def _strip_patch(text):
     if b"# anaconda_ident " in text:
-        return text[: text.find(b"# anaconda_ident ")]
-    if b"anaconda_ident" in text:
+        text = text[: text.find(b"# anaconda_ident ")]
+    elif b"anaconda_ident" in text:
         # The very first patch code:
         # try:
         #     import anaconda_ident.patch
@@ -197,9 +198,13 @@ def _strip_patch(text):
         ndx1 = text.find("anaconda_ident")
         ndx2 = text[:ndx1].rfind("try:")
         buffer = text[ndx2:ndx1].replace("\r", "").replace("\n", "").replace(" ", "")
-        if buffer == "try:import":
-            return text[:ndx2]
-        error("! failed to strip patch, no changes made", fatal=True)
+        if buffer != "try:import":
+            error("! failed to strip patch, no changes made", fatal=True)
+        text = text[:ndx2]
+    while text.endswith(b"\r\n\r\n"):
+        text = text[:-2]
+    while text.endswith(b"\n\n"):
+        text = text[:-1]
     return text
 
 
@@ -246,7 +251,7 @@ def _patch(args, pfile, pname):
         with open(pfile + ".new", "wb") as fp:
             fp.write(text)
             if status != "reverting":
-                fp.write(patch_text)
+                fp.write(_eolmatch(text, patch_text))
         pfile_orig = pfile + ".orig"
         if exists(pfile_orig):
             os.unlink(pfile_orig)
@@ -290,16 +295,16 @@ def _patch_binstar_client(args):
 
 def manage_patch(args):
     global c_version
+    global PATCH_VERSION
     if args.verbose or args.status:
         print("conda prefix:", sys.prefix)
         print("conda version:", c_version)
-    c_version = tuple(map(int, c_version.split(".", 2)[:2]))
-    if c_version >= (23, 7):
-        _patch_conda_context(args)
-        _patch_anon_usage(args, True)
-    else:
+    if PATCH_VERSION:
         _patch_conda_context(args, True)
         _patch_anon_usage(args)
+    else:
+        _patch_conda_context(args)
+        _patch_anon_usage(args, True)
     _patch_anaconda_client(args)
     _patch_binstar_client(args)
 
@@ -544,17 +549,23 @@ def modify_binstar(args, condarc, save=True):
 
 
 def main():
+    global success
+    global PATCH_VERSION
+
     args, p = parse_argv()
     if len(sys.argv) <= 1:
         p.print_help()
         return 0
-
-    """
-    This is just the CLI execution after parsing and before returning of
-    the result to integration into the conda subcommand plugin API
-    """
-    global success
     verbose = args.verbose or args.status
+
+    if PATCH_VERSION and not args.disable:
+        # Make sure that anaconda_anon_usage is enabled as well
+        from anaconda_anon_usage import install as aau_install
+
+        arg2 = ["--status" if args.status else "--enable"]
+        if not verbose:
+            arg2.append("--quiet")
+        aau_install.main(arg2)
 
     if verbose:
         msg = "anaconda-ident installer"
@@ -565,7 +576,7 @@ def main():
     manage_patch(args)
     if args.verify:
         if verbose:
-            print(msg)
+            print(line)
         return 0
     fname = join(sys.prefix, "etc", "anaconda_ident.yml")
     condarc = read_condarc(args, fname)

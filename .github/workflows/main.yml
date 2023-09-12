@@ -103,6 +103,8 @@ jobs:
     - name: Test the installed environment
       env:
         TEST_REPO_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+        ANACONDA_IDENT_DEBUG: "1"
+        ANACONDA_IDENT_RAISE: "1"
       run: |
         cd tests
         bash test_environment.sh ~/aidtest "$TEST_REPO_TOKEN"

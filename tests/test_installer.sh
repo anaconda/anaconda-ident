@@ -26,7 +26,6 @@ version: 1.0
 installer_type: all
 channels:
   - local
-  - ctools
   - defaults
 post_install: post_install.bat # [win]
 post_install: post_install.sh # [not win]
@@ -35,6 +34,7 @@ specs:
   - anaconda-client
   - conda==${version}
 EOD
+
 if [ "$(echo "$version" | cut -d '.' -f 1)" -ge 23 ]; then
   # Install navigator only for conda 23.x
   echo "  - anaconda-navigator" >>construct.yaml
