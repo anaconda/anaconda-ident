@@ -27,6 +27,18 @@ grep '|' "$SCRIPTDIR"/config_tests.txt | while IFS="|" read -r cstr def cha rtk 
     [ -f "$fname" ] || exit 1
     rm -rf "${CONDA_PREFIX}/pkgs/${fname%%.*}"*
     conda install -p "$CONDA_PREFIX" "$fname" --freeze-installed --offline --yes
+    # This corrupts the package cache as a way to test that the files were
+    # copied, not hard linked, to the environment
+    echo "--------"
+    echo "Verifying copies, not links"
+    for fn in "${CONDA_PREFIX}/pkgs/${fname%%.*}"/*/anaconda_ident.yml; do
+        fpath="${CONDA_PREFIX}/$(basename "$(dirname "$fn")")/anaconda_ident.yml"
+        echo "corrupted: true" >> "$fn"
+        echo "$fn -> $fpath"
+        if [ ! -f "$fpath" ]; then echo "config file not found"; exit 1; fi
+        if grep "^corrupted" "$fpath"; then echo "config file linked"; exit 1; fi
+    done
+    echo "--------"
     if [ -n "$compatibility" ]; then
         if [ $compatibility = "--compatibility" ]; then
             what="Compatibility"

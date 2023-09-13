@@ -177,6 +177,7 @@ for aau_state, id_state in states:
             test_fields = "cse" + test_fields
         else:
             test_fields = "cse" if aau_state else ""
+        test_fields = "".join(dict.fromkeys(test_fields))
         expected = list(test_fields)
         expected.append("aau")
         if id_state:
