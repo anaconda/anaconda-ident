@@ -125,7 +125,15 @@ INDEX_JSON = {
 }
 LINK_JSON = {"noarch": {"type": "generic"}, "package_metadata_version": 1}
 PATHS_JSON = {
-    "paths": [{"_path": "", "path_type": "hardlink", "sha256": "", "size_in_bytes": 0}],
+    "paths": [
+        {
+            "_path": "",
+            "no_link": True,
+            "path_type": "hardlink",
+            "sha256": "",
+            "size_in_bytes": 0,
+        }
+    ],
     "paths_version": 1,
 }
 
@@ -185,12 +193,16 @@ def build_tarfile(dname, args, config_dict):
         v = args.verbose or args.dry_run
         new_file = not args.legacy_only
         old_file = args.legacy_only or args.compatibility
+        NO_LINK = []
         if new_file:
             _add(tf, FNAME, config_data, v)
+            NO_LINK.add(FNAME)
         if old_file:
             _add(tf, FNAME2, config_data, v)
+            NO_LINK.add(FNAME2)
         _add(tf, "info/about.json", ABOUT_JSON, v)
         _add(tf, "info/files", FNAME, v)
+        _add(tf, "info/no_link", "\n".join(NO_LINK))
         INDEX_JSON["name"] = name
         INDEX_JSON["version"] = version
         INDEX_JSON["build_number"] = build_number
