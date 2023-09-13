@@ -2,7 +2,7 @@ import getpass
 import platform
 import sys
 from os import environ
-from os.path import basename, join
+from os.path import basename, exists, join
 
 import conda.base.context as c_context
 from anaconda_anon_usage import patch as aau_patch
@@ -128,7 +128,7 @@ def _aid_user_agent(ctx):
 # conda.base.context.SEARCH_PATH
 # Add anaconda_ident's old condarc location for back compatibility
 # We will deprecate this as we migrate existing customers
-if not hasattr(c_context, "_OLD_SEARCH_PATH"):
+if exists(BAKED_CONDARC) and not hasattr(c_context, "_OLD_SEARCH_PATH"):
     _debug("Adding anaconda_ident.yml to the search path")
     sp = c_context._OLD_SEARCH_PATH = c_context.SEARCH_PATH
     n_sys = min(k for k, v in enumerate(sp) if v.startswith("$CONDA_ROOT"))
