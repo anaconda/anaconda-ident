@@ -6,10 +6,10 @@ SCRIPTDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck disable=SC1091
 source "$CONDA_PREFIX/etc/profile.d/conda.sh"
 
-bnum=0
 ver=$(date +%Y%m%d)
+compatibility=--compatibility
 grep '|' "$SCRIPTDIR"/config_tests.txt | while IFS="|" read -r cstr def cha rtk bstr; do
-    bnum=$((bnum + 1))
+    bnum=$RANDOM
     echo "--------"
     echo "config string: $cstr"
     echo "default channels: $def"
@@ -18,20 +18,29 @@ grep '|' "$SCRIPTDIR"/config_tests.txt | while IFS="|" read -r cstr def cha rtk 
     echo "build string: $bstr"
     echo "build number: $bnum"
     echo "--------"
-    output=$(python -m anaconda_ident.keymgr \
+    output=$(python -m anaconda_ident.keymgr $compatibility \
              --name "testpkg" --version "$ver" --build-string "$bstr" --build-number "$bnum" \
              --config-string "$cstr" --default-channel "$def" --channel-alias "$cha" --repo-token "$rtk")
     echo "$output"
     echo "--------"
     fname=$(echo "$output" | tail -1)
     [ -f "$fname" ] || exit 1
-    rm -rf "$CONDA_PREFIX"/pkgs/"${fname%%.*}"
+    rm -rf "${CONDA_PREFIX}/pkgs/${fname%%.*}"*
     conda install -p "$CONDA_PREFIX" "$fname" --freeze-installed --offline --yes
+    if [ -n "$compatibility" ]; then
+        if [ -f "$CONDA_PREFIX/etc/anaconda_ident.yml" ]; then
+            echo "Compatibility mode confirmed"
+        else
+            echo "ERROR: Compatibility mode failed"
+            exit 1
+        fi
+        compatibility=""
+    fi
     echo "--------"
     conda list testpkg | grep -q ^testpkg || exit 1
     CONFIG_STRING="$cstr" DEFAULT_CHANNELS="$def" \
         CHANNEL_ALIAS="$cha" REPO_TOKEN="$rtk" \
         ANACONDA_IDENT_DEBUG=1 SKIP_INSTALL=1 python "$SCRIPTDIR"/test_config.py
     conda remove -p "$CONDA_PREFIX" testpkg --force --offline --yes
-    rm "$fname"
+    rm -rf "$fname" "${CONDA_PREFIX}/pkgs/${fname%%.*}"*
 done

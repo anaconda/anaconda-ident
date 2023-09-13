@@ -14,6 +14,7 @@ try:
 except Exception:
     import ruamel_yaml
 
+from . import __version__
 
 LINE = "-" * 16
 
@@ -82,6 +83,15 @@ def parse_argv():
         help="Print a verbose explanation of the progress.",
     )
     p.add_argument(
+        "--compatibility",
+        action="store_true",
+        help="Stores the config file in a second location in the environment. "
+        "Older versions of anaconda-ident stored it in a non-standard location; "
+        "this has been corrected in newer versions of the tool. For existing "
+        "deployments, it may be necessary to use this option to ensure "
+        "uninterrupted service.",
+    )
+    p.add_argument(
         "--dry-run",
         action="store_true",
         help="Dry run mode. "
@@ -97,7 +107,8 @@ def parse_argv():
 
 
 ABOUT_JSON = {"summary": "Anaconda-Ident Configuration Package"}
-FNAME = "etc/anaconda_ident.yml"
+FNAME = "condarc.d/anaconda_ident.yml"
+FNAME2 = "etc/anaconda_ident.yml"
 INDEX_JSON = {
     "arch": None,
     "build": "custom_0",
@@ -172,6 +183,8 @@ def build_tarfile(dname, args, config_dict):
     def add_all(tf):
         v = args.verbose or args.dry_run
         _add(tf, FNAME, config_data, v)
+        if args.compatibility:
+            _add(tf, FNAME2, config_data, v)
         _add(tf, "info/about.json", ABOUT_JSON, v)
         _add(tf, "info/files", FNAME, v)
         INDEX_JSON["name"] = name
@@ -179,11 +192,16 @@ def build_tarfile(dname, args, config_dict):
         INDEX_JSON["build_number"] = build_number
         INDEX_JSON["build"] = build_string
         INDEX_JSON["timestamp"] = timestamp
+        if not args.compatibility:
+            INDEX_JSON["depends"][0] += f" >={__version__}"
         _add(tf, "info/index.json", INDEX_JSON, v)
         _add(tf, "info/link.json", LINK_JSON, v)
         PATHS_JSON["paths"][0]["_path"] = FNAME
         PATHS_JSON["paths"][0]["size_in_bytes"] = config_size
         PATHS_JSON["paths"][0]["sha256"] = config_hash
+        if args.compatibility:
+            PATHS_JSON["paths"].append(PATHS_JSON["paths"][0].copy())
+            PATHS_JSON["paths"][1]["_path"] = FNAME2
         _add(tf, "info/paths.json", PATHS_JSON, v)
 
     if args.dry_run:

@@ -126,7 +126,8 @@ def _aid_user_agent(ctx):
 
 
 # conda.base.context.SEARCH_PATH
-# Add anaconda_ident's condarc location
+# Add anaconda_ident's old condarc location for back compatibility
+# We will deprecate this as we migrate existing customers
 if not hasattr(c_context, "_OLD_SEARCH_PATH"):
     _debug("Adding anaconda_ident.yml to the search path")
     sp = c_context._OLD_SEARCH_PATH = c_context.SEARCH_PATH
