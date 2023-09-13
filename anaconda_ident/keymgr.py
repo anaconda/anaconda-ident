@@ -91,6 +91,7 @@ def parse_argv():
         "deployments, it may be necessary to use this option to ensure "
         "uninterrupted service.",
     )
+    p.add_argument("--legacy-only", action="store_true", help=argparse.SUPPRESS)
     p.add_argument(
         "--dry-run",
         action="store_true",
@@ -182,8 +183,11 @@ def build_tarfile(dname, args, config_dict):
 
     def add_all(tf):
         v = args.verbose or args.dry_run
-        _add(tf, FNAME, config_data, v)
-        if args.compatibility:
+        new_file = not args.legacy_only
+        old_file = args.legacy_only or args.compatibility
+        if new_file:
+            _add(tf, FNAME, config_data, v)
+        if old_file:
             _add(tf, FNAME2, config_data, v)
         _add(tf, "info/about.json", ABOUT_JSON, v)
         _add(tf, "info/files", FNAME, v)
@@ -192,16 +196,17 @@ def build_tarfile(dname, args, config_dict):
         INDEX_JSON["build_number"] = build_number
         INDEX_JSON["build"] = build_string
         INDEX_JSON["timestamp"] = timestamp
-        if not args.compatibility:
+        if not old_file:
             INDEX_JSON["depends"][0] += f" >={__version__}"
         _add(tf, "info/index.json", INDEX_JSON, v)
         _add(tf, "info/link.json", LINK_JSON, v)
         PATHS_JSON["paths"][0]["_path"] = FNAME
         PATHS_JSON["paths"][0]["size_in_bytes"] = config_size
         PATHS_JSON["paths"][0]["sha256"] = config_hash
-        if args.compatibility:
+        if old_file and new_file:
             PATHS_JSON["paths"].append(PATHS_JSON["paths"][0].copy())
-            PATHS_JSON["paths"][1]["_path"] = FNAME2
+        if old_file:
+            PATHS_JSON["paths"][-1]["_path"] = FNAME2
         _add(tf, "info/paths.json", PATHS_JSON, v)
 
     if args.dry_run:

@@ -28,13 +28,19 @@ grep '|' "$SCRIPTDIR"/config_tests.txt | while IFS="|" read -r cstr def cha rtk 
     rm -rf "${CONDA_PREFIX}/pkgs/${fname%%.*}"*
     conda install -p "$CONDA_PREFIX" "$fname" --freeze-installed --offline --yes
     if [ -n "$compatibility" ]; then
-        if [ -f "$CONDA_PREFIX/etc/anaconda_ident.yml" ]; then
-            echo "Compatibility mode confirmed"
+        if [ $compatibility = "--compatibility" ]; then
+            what="Compatibility"
+            compatibility="--legacy-only"
         else
-            echo "ERROR: Compatibility mode failed"
+            what="Legacy"
+            compatibility=""
+        fi
+        if [ -f "$CONDA_PREFIX/etc/anaconda_ident.yml" ]; then
+            echo "$what mode confirmed"
+        else
+            echo "ERROR: $what mode failed"
             exit 1
         fi
-        compatibility=""
     fi
     echo "--------"
     conda list testpkg | grep -q ^testpkg || exit 1
