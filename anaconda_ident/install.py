@@ -578,7 +578,7 @@ def main():
         if verbose:
             print(line)
         return 0
-    fname = join(sys.prefix, "etc", "anaconda_ident.yml")
+    fname = join(sys.prefix, "condarc.d", "anaconda_ident.yml")
     condarc = read_condarc(args, fname)
     if not success:
         if verbose:
