@@ -196,13 +196,13 @@ def build_tarfile(dname, args, config_dict):
         NO_LINK = []
         if new_file:
             _add(tf, FNAME, config_data, v)
-            NO_LINK.add(FNAME)
+            NO_LINK.append(FNAME)
         if old_file:
             _add(tf, FNAME2, config_data, v)
-            NO_LINK.add(FNAME2)
+            NO_LINK.append(FNAME2)
         _add(tf, "info/about.json", ABOUT_JSON, v)
         _add(tf, "info/files", FNAME, v)
-        _add(tf, "info/no_link", "\n".join(NO_LINK))
+        _add(tf, "info/no_link", "\n".join(NO_LINK), v)
         INDEX_JSON["name"] = name
         INDEX_JSON["version"] = version
         INDEX_JSON["build_number"] = build_number
