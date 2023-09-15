@@ -574,27 +574,17 @@ def main():
         print(msg)
         print(line)
     manage_patch(args)
-    if args.verify:
-        if verbose:
-            print(line)
-        return 0
-    fname = join(sys.prefix, "condarc.d", "anaconda_ident.yml")
-    condarc = read_condarc(args, fname)
-    if not success:
-        if verbose:
-            print(line)
-        return -1
-    if args.status or len(sys.argv) <= 1 + ("--quiet" in sys.argv):
-        if verbose:
-            print(line)
-        return 0 if success else -1
-    newcondarc = manage_condarc(args, condarc)
-    if condarc != newcondarc:
-        write_condarc(args, fname, newcondarc)
-    elif verbose:
-        print("no changes to save")
-    if args.write_token or args.clear_old_token:
-        modify_binstar(args, newcondarc, save=args.write_token)
+    if not args.verify:
+        fname = join(sys.prefix, "condarc.d", "anaconda_ident.yml")
+        condarc = read_condarc(args, fname)
+        if not args.status:
+            newcondarc = manage_condarc(args, condarc)
+            if condarc != newcondarc:
+                write_condarc(args, fname, newcondarc)
+            elif verbose:
+                print("no changes to save")
+        if args.write_token or args.clear_old_token:
+            modify_binstar(args, newcondarc, save=args.write_token)
     if verbose:
         print(line)
     return 0 if success else -1
