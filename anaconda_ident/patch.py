@@ -46,10 +46,14 @@ _client_token_formats = {
 }
 
 
-def get_environment_name():
-    prefix = (
+def get_environment_prefix():
+    return (
         getattr(context, "checked_prefix", None) or context.target_prefix or sys.prefix
     )
+
+
+def get_environment_name(prefix=None):
+    prefix = prefix or get_environment_prefix()
     return basename(env_name(prefix)) if prefix else None
 
 
@@ -91,6 +95,8 @@ def client_token_type():
 def client_token_string():
     parts = ["aau/" + tokens.version_token(), "aid/" + __version__]
     fmt, org = client_token_type()
+    pfx = get_environment_prefix()
+    _debug("Environmment: %s", pfx)
     for code in fmt:
         value = None
         if code == "c":
@@ -98,7 +104,7 @@ def client_token_string():
         elif code == "s":
             value = tokens.session_token()
         elif code == "e":
-            value = tokens.environment_token()
+            value = tokens.environment_token(pfx)
         elif code == "u":
             value = get_username()
         elif code == "h":
@@ -106,7 +112,7 @@ def client_token_string():
         elif code == "o":
             value = org
         elif code == "n":
-            value = get_environment_name()
+            value = get_environment_name(pfx)
         else:
             _debug("Unexpected client token code: %s", code)
             value = None
