@@ -3,7 +3,8 @@
 set -o errtrace -o nounset -o pipefail -o errexit
 
 repo_token=$1; shift
-version=$1; shift
+aid_version=$1; shift
+c_version=$1; shift
 
 CONDA_PREFIX=$(cd "$CONDA_PREFIX" && pwd)
 # shellcheck disable=SC1090
@@ -33,10 +34,11 @@ post_install: post_install.sh # [not win]
 specs:
   - anaconda-ident-config
   - anaconda-client
-  - conda==${version}
+  - anaconda-ident==${aid_version}
+  - conda==${c_version}
 EOD
 
-if [ "$(echo "$version" | cut -d '.' -f 1)" -ge 23 ]; then
+if [ "$(echo "$c_version" | cut -d '.' -f 1)" -ge 23 ]; then
   # Install navigator only for conda 23.x
   echo "  - anaconda-navigator" >>construct.yaml
 fi
