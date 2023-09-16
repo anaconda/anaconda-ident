@@ -30,6 +30,7 @@ jobs:
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda install conda-build
+        conda config --prepend channels ctools
         conda build conda.recipe
         mv $CONDA/conda-bld .
     - name: Upload build artifacts
@@ -47,7 +48,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        cversion: ['23.7.3', '23.5.2', '23.3.1', '23.1.0', '22.11.1', '4.14.0', '4.11.0']
+        cversion: ['23.7.4', '23.5.2', '23.3.1', '23.1.0', '22.11.1', '4.14.0', '4.11.0']
     runs-on: ${{ matrix.os }}
     steps:
     - name: Retrieve the source code
@@ -59,27 +60,35 @@ jobs:
       with:
         name: conda-bld
         path: ./conda-bld
-    - name: Build test environments
+    - name: Set environment
       run: |
-        if [[ "${{ matrix.cversion }}" == 23.7.* ]]; then
-          mamba=conda-libmamba-solver
-          echo "MAMBA=yes" >> "$GITHUB_ENV"
-        fi
         mv conda-bld $CONDA/
         source $CONDA/etc/profile.d/conda.sh
-        conda install -c local constructor conda-index anaconda-ident
-        conda create -p ./testenv -c local anaconda-ident conda==${{ matrix.cversion }} $mamba
+        aid_version=$(conda search local::anaconda-ident | grep ^anaconda-ident | awk '{print $2}' | tail -1)
+        echo "AID_VERSION=$aid_version" >> "$GITHUB_ENV"
+        echo "C_VERSION=${{ matrix.cversion }}" >> "$GITHUB_ENV"
+        v1=$(echo "${{ matrix.cversion }}" | cut -d '.' -f 1)
+        v2=$(echo "${{ matrix.cversion }}" | cut -d '.' -f 2)
+        if [ $v1 -gt 23 ] || [ $v1 -eq 23 ] && [ $v2 -ge 7 ]; then
+          echo "MAMBA=conda-libmamba-solver" >> "$GITHUB_ENV"
+        fi
+    - name: Build test environments
+      run: |
+        source $CONDA/etc/profile.d/conda.sh
+        conda config --prepend channels ctools
+        conda install -c local constructor conda-index anaconda-ident==$AID_VERSION
+        conda create -p ./testenv -c local anaconda-ident anaconda-ident==$AID_VERSION conda==$C_VERSION $MAMBA
     - name: Test endpoints (Windows)
       if: matrix.os == 'windows-latest'
       shell: cmd
       run: |
-        call %CONDA%/Scripts/activate
+        call testenv\Scripts\activate
         anaconda-ident --status
         anaconda-keymgr --help
     - name: Test endpoints (Unix)
       if: matrix.os != 'windows-latest'
       run: |
-        source $CONDA/bin/activate
+        source ./testenv/bin/activate
         anaconda-ident --status
         anaconda-keymgr --help
     - name: Build an installer
@@ -88,7 +97,7 @@ jobs:
       run: |
         cd tests
         export CONDA_PREFIX=$CONDA
-        bash test_installer.sh "$TEST_REPO_TOKEN" ${{ matrix.cversion }}
+        bash test_installer.sh $TEST_REPO_TOKEN $AID_VERSION $C_VERSION
     - name: Run the installer (Windows)
       if: matrix.os == 'windows-latest'
       shell: cmd
@@ -119,7 +128,7 @@ jobs:
         python -m anaconda_ident.install --status
         python test_config.py
         bash test_keymgr.sh
-        if [ "$MAMBA" = "yes" ]; then
+        if [ -n "$MAMBA" ]; then
           conda config --set solver libmamba
           python test_config.py
           bash test_keymgr.sh
