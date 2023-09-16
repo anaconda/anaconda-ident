@@ -8,7 +8,7 @@ source:
   path: ..
 
 build:
-  noarch: python
+  noarch: python  # [not win]
   entry_points:
     - anaconda-ident = anaconda_ident.install:main
     - anaconda-keymgr = anaconda_ident.keymgr:main
