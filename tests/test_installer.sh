@@ -26,6 +26,7 @@ version: 1.0
 installer_type: all
 channels:
   - local
+  - ctools
   - defaults
 post_install: post_install.bat # [win]
 post_install: post_install.sh # [not win]

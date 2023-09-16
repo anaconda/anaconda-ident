@@ -26,10 +26,10 @@ BAKED_CONDARC = join(sys.prefix, "etc", "anaconda_ident.yml")
 # as synonyms to their a-a-u equivalents. *_DEBUG enables debug
 # logging of course; _PREFIX does so as well but prepends the
 # given string to each debug log value.
-DPREFIX = environ.get("ANACONDA_IDENT_DEBUG_PREFIX") or ""
-DEBUG = environ.get("ANACONDA_IDENT_DEBUG") or DPREFIX
+DPREFIX = environ.get("ANACONDA_IDENT_DEBUG_PREFIX") or aau_utils.DPREFIX or ""
+DEBUG = environ.get("ANACONDA_IDENT_DEBUG") or aau_utils.DEBUG or DPREFIX
 if DEBUG:
-    aau_utils.DPREFIX = aau_utils.DPREFIX or DPREFIX
+    aau_utils.DPREFIX = DPREFIX
     aau_utils.DEBUG = True
 
 

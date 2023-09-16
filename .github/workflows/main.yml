@@ -30,6 +30,7 @@ jobs:
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda install conda-build
+        conda config --prepend channels ctools
         conda build conda.recipe
         mv $CONDA/conda-bld .
     - name: Upload build artifacts
@@ -67,8 +68,9 @@ jobs:
         fi
         mv conda-bld $CONDA/
         source $CONDA/etc/profile.d/conda.sh
-        conda install -c local constructor conda-index anaconda-ident
-        conda create -p ./testenv -c local anaconda-ident conda==${{ matrix.cversion }} $mamba
+        conda config --prepend channels ctools
+        conda install -c local constructor conda-index local::anaconda-ident
+        conda create -p ./testenv -c local local:anaconda-ident conda==${{ matrix.cversion }} $mamba
     - name: Test endpoints (Windows)
       if: matrix.os == 'windows-latest'
       shell: cmd
