@@ -82,13 +82,13 @@ jobs:
       if: matrix.os == 'windows-latest'
       shell: cmd
       run: |
-        call %CONDA%/Scripts/activate
+        call testenv\Scripts\activate
         anaconda-ident --status
         anaconda-keymgr --help
     - name: Test endpoints (Unix)
       if: matrix.os != 'windows-latest'
       run: |
-        source $CONDA/bin/activate
+        source ./testenv/bin/activate
         anaconda-ident --status
         anaconda-keymgr --help
     - name: Build an installer
