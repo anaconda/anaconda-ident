@@ -85,7 +85,7 @@ echo "------------------------"
 
 echo
 echo -n "correct prefix ... "
-test_prefix=$(echo "$status" | sed -nE 's@ *conda prefix: @@p' | tail -1)
+test_prefix=$(echo "$status" | sed -nE 's@^. prefix: @@p' | tail -1)
 # For windows this converts the prefix to posix
 test_prefix=$(cd "$test_prefix" && pwd)
 if [ "$test_prefix" = "$T_PREFIX" ]; then
@@ -96,7 +96,7 @@ else
 fi
 
 echo -n "enabled ... "
-cnt=$(echo "$status" | grep -c "^. status: ENABLED")
+cnt=$(echo "$status" | grep -c ": ENABLED")
 if [ "$cnt" -ge 3 ]; then
   echo "yes"
 else
