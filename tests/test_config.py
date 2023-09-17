@@ -1,6 +1,8 @@
+import json
 import os
 import subprocess
 import sys
+from os.path import basename, join
 
 from anaconda_anon_usage import __version__ as aau_version
 from conda.base.context import context
@@ -153,9 +155,29 @@ if config_env:
     test_patterns = [(config_baked, fmt)]
     print("test_patterns:", test_patterns)
 
+proc = subprocess.run(
+    ["conda", "info", "--envs", "--json"],
+    check=False,
+    capture_output=True,
+    text=True,
+)
+pfx_s = join(sys.prefix, "envs") + os.sep
+pdata = json.loads(proc.stdout)
+envs = [e for e in pdata["envs"] if e == sys.prefix or e.startswith(pfx_s)]
+envs = {("base" if e == sys.prefix else basename(e)): e for e in envs}
+tp_0 = test_patterns[0]
+test_patterns = [t + ("",) for t in test_patterns]
+for env in envs:
+    # Test each env twice to confirm that
+    # we get the same token each time
+    test_patterns.append(tp_0 + (env,))
+    test_patterns.append(tp_0 + (env,))
+maxlen = max(len(e) for e in envs)
+
 nfailed = 0
-saved_values = {"aau": aau_version, "aid": aid_version}
+other_tokens = {"aau": aau_version, "aid": aid_version}
 all_session_tokens = set()
+all_environments = set()
 
 id_last = False
 need_header = True
@@ -170,8 +192,9 @@ for aau_state, id_state in states:
         print(p.stdout.decode("utf-8").strip())
         need_header = True
     anon_flag = "T" if aau_state else "F"
-    for param, test_fields in test_patterns:
-        saved_values["o"] = param.split(":", 1)[-1] if ":" in param else ""
+    for param, test_fields, envname in test_patterns:
+        other_tokens["o"] = param.split(":", 1)[-1] if ":" in param else ""
+        other_tokens["n"] = envname if envname else "base"
         os.environ["CONDA_ANACONDA_IDENT"] = param
         if id_state:
             test_fields = "cse" + test_fields
@@ -185,15 +208,19 @@ for aau_state, id_state in states:
         # Make sure to leave override-channels and the full channel URL in here.
         # This allows this command to run fully no matter what we do to channel_alias
         # and default_channels
+        cmd = [
+            "conda",
+            "install",
+            "-vvv",
+            "--override-channels",
+            "-c",
+            "https://repo.anaconda.com/pkgs/fakechannel",
+            "fakepackage",
+        ]
+        if envname:
+            cmd.extend(["-n", envname])
         proc = subprocess.run(
-            [
-                "conda",
-                "search",
-                "-vvv",
-                "--override-channels",
-                "-c",
-                "https://repo.anaconda.com/pkgs/fakechannel",
-            ],
+            cmd,
             check=False,
             capture_output=True,
             text=True,
@@ -212,23 +239,34 @@ for aau_state, id_state in states:
             status.append(f"{','.join(missing)} MISSING")
         if extras:
             status.append(f"{','.join(extras)} EXTRA")
-        conflicts = []
+        modified = []
+        duplicated = []
         for k, v in new_values.items():
             if k == "s":
                 if new_values["s"] in all_session_tokens:
                     status.append("SESSION")
                 all_session_tokens.add(new_values["s"])
-            elif saved_values.setdefault(k, v) != v:
-                conflicts.append(k)
-        if conflicts:
-            status.append(f"{','.join(conflicts)} CONFLICT")
+                continue
+            if k == "e":
+                k = "e/" + (envname or "base")
+                if k not in other_tokens and v in all_environments:
+                    duplicated.append("e")
+                all_environments.add(v)
+            if other_tokens.setdefault(k, v) != v:
+                modified.append(k)
+        if duplicated:
+            status.append(f"DUPLICATED: {','.join(duplicated)}")
+        if modified:
+            status.append(f"MODIFIED: {','.join(modified)}")
         status = ", ".join(status)
         if need_header:
             need_header = False
             print("|", header)
-            print("anon    ident     fields  status")
-            print("---- ------------ ------- ------")
-        print(f"{anon_flag:4} {param:12} {test_fields:7} {status or 'OK'}")
+            print(f"anon    ident     {'envname':{maxlen}} fields  status")
+            print(f"---- ------------ {'-' * maxlen} ------- ------")
+        print(
+            f"{anon_flag:4} {param:12} {envname:{maxlen}} {test_fields:7} {status or 'OK'}"
+        )
         if status:
             print("|", header)
         if status:
@@ -236,6 +274,23 @@ for aau_state, id_state in states:
             if "--fast" in sys.argv:
                 sys.exit(1)
 
+print("")
+print("Checking environment tokens")
+print("---------------------------")
+for k, v in other_tokens.items():
+    if k.startswith("e/"):
+        pfx = envs[k[2:]]
+        tpath = join(pfx, "etc", "aau_token")
+        try:
+            with open(tpath) as fp:
+                token = fp.read().strip()
+        except Exception:
+            token = ""
+        status = "OK" if token == v else "XX"
+        print(f"{k[2:]:{maxlen}} | {v} {token} | {status}")
+        if token != v:
+            nfailed += 1
+print("---------------------------")
 
 print("FAILURES:", nfailed)
 sys.exit(nfailed)
