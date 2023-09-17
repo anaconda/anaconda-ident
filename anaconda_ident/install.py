@@ -6,7 +6,8 @@ import sysconfig
 from os.path import dirname, exists, join, relpath
 from traceback import format_exc
 
-from conda import __version__ as c_version  # noqa
+from anaconda_anon_usage import __version__ as aau_version
+from conda import __version__ as c_version
 
 from . import __version__
 
@@ -26,7 +27,7 @@ def parse_argv():
     g.add_argument(
         "--verify",
         action="store_true",
-        help="Enable anaconda_ident operation if necessary and exit immediately, "
+        help="Enable operation if necessary and exit immediately, "
         "without reading or modifying the current configuration.",
     )
     g.add_argument(
@@ -40,7 +41,12 @@ def parse_argv():
     g.add_argument(
         "--status",
         action="store_true",
-        help="Print the anaconda_ident patch and configuration status, and make no changes.",
+        help="Print the patch and configuration status, and make no changes.",
+    )
+    g.add_argument(
+        "--version",
+        action="store_true",
+        help="Print the version and exit immediately, making no changes.",
     )
     g.add_argument(
         "--clean",
@@ -109,10 +115,9 @@ def parse_argv():
 
     sys.argv[0] = "anaconda-ident"
     args = p.parse_args()
-
-    if (args.clean or args.verify or args.status) and sum(
+    if (args.clean or args.verify or args.status or args.version) and sum(
         v is not None for v in vars(args).values()
-    ) != 6:
+    ) != 7:
         what = "clean" if args.clean else ("status" if args.status else "verify")
         print("WARNING: --%s overrides other operations" % what)
     return args, p
@@ -211,8 +216,7 @@ def _strip_patch(text):
 def _patch(args, pfile, pname):
     global PATCH_TEXT
     verbose = args.verbose or args.status
-    if verbose:
-        print(f"patch target: ...{relpath(pfile, _sp_dir())}")
+    tpath = relpath(pfile, _sp_dir())
     if pname:
         patch_text = PATCH_TEXT.replace(b"{version}", __version__.encode("ascii"))
         patch_text = patch_text.replace(b"{pname}", pname.encode("ascii"))
@@ -222,7 +226,7 @@ def _patch(args, pfile, pname):
     if status == "DISABLED" and not patch_text:
         status = "NOT REQUIRED"
     if verbose:
-        print(f"| status: {status}")
+        print(f"| {tpath}: {status}")
     if status.startswith("NOT"):
         return
     enable = (args.enable or args.verify) and patch_text
@@ -241,7 +245,7 @@ def _patch(args, pfile, pname):
     if not need_change:
         return
     if verbose:
-        print(f"| {status} patch...", end="")
+        print(f"|   {status} patch...", end="")
     renamed = False
     try:
         text = _strip_patch(text)
@@ -270,7 +274,7 @@ def _patch(args, pfile, pname):
             os.rename(pfile_orig, pfile)
     text, status = _read(args, pfile, patch_text)
     if verbose:
-        print(f"| new status: {status}")
+        print(f"|   new status: {status}")
 
 
 def _patch_conda_context(args, force_disable=False):
@@ -294,11 +298,9 @@ def _patch_binstar_client(args):
 
 
 def manage_patch(args):
-    global c_version
     global PATCH_VERSION
     if args.verbose or args.status:
-        print("conda prefix:", sys.prefix)
-        print("conda version:", c_version)
+        print("patch targets:")
     if PATCH_VERSION:
         _patch_conda_context(args, True)
         _patch_anon_usage(args)
@@ -329,13 +331,13 @@ def _yaml():
     return __yaml
 
 
-def _print_config(what, args, config):
+def _print_config(args, config):
     if args.verbose or args.status:
         value = config.get("anaconda_ident")
-        print("{} user agent: {}".format(what, value or "<default>"))
+        print(f"| user agent: {value or 'default'}")
 
 
-def _print_default_channels(what, args, config):
+def _print_default_channels(args, config):
     if args.verbose or args.status:
         value = config.get("default_channels")
         if value is None:
@@ -344,24 +346,24 @@ def _print_default_channels(what, args, config):
             value = "[]"
         else:
             value = "\n - " + "\n - ".join(value)
-        print(f"{what} default_channels: {value}")
+        print(f"| default_channels: {value}")
 
 
-def _print_channel_alias(what, args, config):
+def _print_channel_alias(args, config):
     if args.verbose or args.status:
         value = config.get("channel_alias")
-        print("{} channel_alias: {}".format(what, value or "<none>"))
+        print(f"| channel_alias: {value or '<none>'}")
 
 
-def _print_tokens(what, args, config):
+def _print_tokens(args, config):
     if args.verbose or args.status:
         tokens = config.get("repo_tokens")
         if tokens:
-            print("%s repo tokens:" % what)
+            print("| repo tokens:")
             for k, v in tokens.items():
-                print(f" - {k}: {v[:6]}...")
+                print(f"| - {k}: {v[:6]}...")
         else:
-            print("%s repo tokens: <none>" % what)
+            print("| repo tokens: <none>")
 
 
 def _set_or_delete(d, k, v):
@@ -376,7 +378,7 @@ def read_condarc(args, fname):
     fexists = exists(fname)
     if verbose:
         spath = relpath(fname, sys.prefix)
-        print("config file: {}{}".format(spath, "" if fexists else " (not present)"))
+        print("config: {}{}".format(spath, "" if fexists else " (not present)"))
     if not fexists:
         return {}
     try:
@@ -385,10 +387,10 @@ def read_condarc(args, fname):
     except Exception:
         error("config load failed")
     if verbose:
-        _print_config("|", args, condarc)
-        _print_default_channels("|", args, condarc)
-        _print_channel_alias("|", args, condarc)
-        _print_tokens("|", args, condarc)
+        _print_config(args, condarc)
+        _print_default_channels(args, condarc)
+        _print_channel_alias(args, condarc)
+        _print_tokens(args, condarc)
     return condarc
 
 
@@ -397,11 +399,20 @@ def manage_condarc(args, condarc):
     if args.clean:
         return {}
     condarc = condarc.copy()
+    first = True
+
+    def _header(first):
+        if first:
+            print("new config:")
+            first = False
+        return first
+
     # config string
     if args.config is not None:
         new_token = "" if args.config == "default" else args.config
         _set_or_delete(condarc, "anaconda_ident", new_token)
-        _print_config("new", args, condarc)
+        first = _header(first)
+        _print_config(args, condarc)
     # default_channels
     if args.default_channel:
         nchan = []
@@ -410,11 +421,13 @@ def manage_condarc(args, condarc):
                 if c2.strip():
                     nchan.append(c2.strip().rstrip("/"))
         _set_or_delete(condarc, "default_channels", nchan)
-        _print_default_channels("new", args, condarc)
+        first = _header(first)
+        _print_default_channels(args, condarc)
     # channel alias
     if args.channel_alias is not None:
         _set_or_delete(condarc, "channel_alias", args.channel_alias)
-        _print_channel_alias("new", args, condarc)
+        first = _header(first)
+        _print_channel_alias(args, condarc)
     # tokens
     if args.repo_token is not None:
         tokens = {}
@@ -434,6 +447,7 @@ def manage_condarc(args, condarc):
             defchan = "/".join(defchan[0].strip().split("/", 3)[:3]) + "/"
             tokens[defchan] = args.repo_token.strip()
         _set_or_delete(condarc, "repo_tokens", tokens)
+        first = _header(first)
         _print_tokens("new", args, condarc)
     _set_or_delete(condarc, "add_anaconda_token", bool(condarc.get("repo_tokens")))
     return condarc
@@ -450,7 +464,7 @@ def write_condarc(args, fname, condarc):
         return
     if verbose:
         what = "updating" if exists(fname) else "creating"
-        print("%s anaconda_ident condarc..." % what)
+        print("%s config..." % what)
     renamed = False
     try:
         os.makedirs(dirname(fname), exist_ok=True)
@@ -556,6 +570,9 @@ def main():
     if len(sys.argv) <= 1:
         p.print_help()
         return 0
+    if args.version:
+        print(__version__)
+        return 0
     verbose = args.verbose or args.status
 
     if PATCH_VERSION and not args.disable:
@@ -573,6 +590,14 @@ def main():
         print(line)
         print(msg)
         print(line)
+        print("versions:")
+        print("| conda:", c_version)
+        print("| anaconda-anon-usage:", aau_version)
+        print("| anaconda-ident:", __version__)
+        print("directories:")
+        print("| prefix:", sys.prefix)
+        print("| site-packages:", relpath(_sp_dir(), sys.prefix))
+
     manage_patch(args)
     if not args.verify:
         fname = join(sys.prefix, "condarc.d", "anaconda_ident.yml")
