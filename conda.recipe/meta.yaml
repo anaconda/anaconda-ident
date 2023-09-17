@@ -8,7 +8,7 @@ source:
   path: ..
 
 build:
-  noarch: python
+  noarch: python  # [not win]
   entry_points:
     - anaconda-ident = anaconda_ident.install:main
     - anaconda-keymgr = anaconda_ident.keymgr:main
@@ -30,10 +30,18 @@ test:
     - tests/test_keymgr.sh  # [unix]
     - tests/config_tests.txt  # [unix]
   commands:
+    - export ANACONDA_IDENT_DEBUG=1  # [unix]
+    - export PYTHONUNBUFFERED=1  # [unix]
+    - set ANACONDA_IDENT_DEBUG=1  # [win]
+    - set PYTHONUNBUFFERED=1 # [win]
+    - conda create -n testchild1 --yes
+    - conda create -n testchild2 --yes
+    - conda info
+    - conda info --envs
     - anaconda-ident --status
     - anaconda-keymgr --help
-    - PYTHONUNBUFFERED=1 python tests/test_config.py
-    - PYTHONUNBUFFERED=1 bash tests/test_keymgr.sh  # [unix]
+    - python tests/test_config.py
+    - bash tests/test_keymgr.sh  # [unix]
 
 about:
   home: https://github.com/Anaconda-Platform/anaconda-ident
