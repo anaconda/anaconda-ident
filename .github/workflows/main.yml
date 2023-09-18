@@ -133,6 +133,8 @@ jobs:
         fi
         source ./testenv/*/activate
         cd tests
+        conda create -n testchild1 --yes
+        conda create -n testchild2 --yes
         python -m anaconda_ident.install --status
         python test_config.py
         bash test_keymgr.sh
