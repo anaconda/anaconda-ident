@@ -22,11 +22,7 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest]
-        force_arch: ["yes", "no"]
-        exclude:
-          - os: windows-latest
-            force_arch: "yes"
+        os: [windows-latest, ubuntu-latest, macos-latest]
     defaults:
       run:
         shell: bash
@@ -41,14 +37,12 @@ jobs:
         source $CONDA/etc/profile.d/conda.sh
         conda install conda-build
         conda config --prepend channels ctools
-        conda build conda.recipe --variants "{'force_arch': '${{ matrix.force_arch }}'}"
+        if [ ${{ matrix.os }} = macos-latest ]; then args=--variants" {'force_arch':'yes'}"; fi
+        conda build conda.recipe $args
         mv $CONDA/conda-bld .
         # This ensures the noarch repodata.json is not clobbered
-        if [ -d conda-bld/win-64 ]; then rm -rf conda-bld/noarch; fi
+        if [ ${{ matrix.os }} != ubuntu-latest ]; then rm -rf conda-bld/noarch; fi
     - name: Upload build artifacts
-      # Don't upload the macos package. It was built just to test the unix
-      # arch-specific build. Instead we are using the noarch package for unix
-      if: matrix.force_arch != 'yes'
       uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32 # v3
       with:
         if-no-files-found: error
@@ -167,4 +161,6 @@ jobs:
         source $CONDA/bin/activate
         conda install anaconda-client
         [[ "$GITHUB_REF" =~ ^refs/tags/ ]] || export LABEL="--label dev"
+        # Remove the macos build, use the unix noarch instead
+        rm -rf conda-bld/osx-64 || :
         anaconda --verbose --token $ANACONDA_TOKEN upload --user mcg $LABEL conda-bld/*/*.tar.bz2 --force
