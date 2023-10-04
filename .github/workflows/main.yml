@@ -22,7 +22,11 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [windows-latest, ubuntu-latest]
+        force_arch: ["yes", "no"]
+        exclude:
+          - os: windows-latest
+            force_arch: "yes"
     defaults:
       run:
         shell: bash
@@ -37,11 +41,14 @@ jobs:
         source $CONDA/etc/profile.d/conda.sh
         conda install conda-build
         conda config --prepend channels ctools
-        conda build conda.recipe
+        conda build conda.recipe --variants "{'force_arch': '${{ matrix.force_arch }}'}"
         mv $CONDA/conda-bld .
         # This ensures the noarch repodata.json is not clobbered
         if [ -d conda-bld/win-64 ]; then rm -rf conda-bld/noarch; fi
     - name: Upload build artifacts
+      # Don't upload the macos package. It was built just to test the unix
+      # arch-specific build. Instead we are using the noarch package for unix
+      if: matrix.force_arch != 'yes'
       uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32 # v3
       with:
         if-no-files-found: error
@@ -56,7 +63,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        cversion: ['23.7.4', '23.5.2', '23.3.1', '23.1.0', '22.11.1', '4.14.0', '4.11.0']
+        cversion: ['23.9.0', '23.7.4', '23.5.2', '23.3.1', '22.11.1', '4.14.0', '4.11.0']
     runs-on: ${{ matrix.os }}
     steps:
     - name: Retrieve the source code
@@ -75,29 +82,27 @@ jobs:
         aid_version=$(conda search local::anaconda-ident | grep ^anaconda-ident | awk '{print $2}' | tail -1)
         echo "AID_VERSION=$aid_version" >> "$GITHUB_ENV"
         echo "C_VERSION=${{ matrix.cversion }}" >> "$GITHUB_ENV"
-        v1=$(echo "${{ matrix.cversion }}" | cut -d '.' -f 1)
-        v2=$(echo "${{ matrix.cversion }}" | cut -d '.' -f 2)
-        if [ $v1 -gt 23 ] || [ $v1 -eq 23 ] && [ $v2 -ge 7 ]; then
+        if [ $cversion == '23.9' ]; then
           echo "MAMBA=conda-libmamba-solver" >> "$GITHUB_ENV"
         fi
     - name: Build test environments
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda config --prepend channels ctools
-        conda install -c local constructor conda-index anaconda-ident==$AID_VERSION
-        conda create -p ./testenv -c local anaconda-ident anaconda-ident==$AID_VERSION conda==$C_VERSION $MAMBA
+        conda install -c local constructor conda-index anaconda-ident=$AID_VERSION
+        conda create -p ./testenv -c local anaconda-ident anaconda-ident=$AID_VERSION conda=$C_VERSION $MAMBA
     - name: Test endpoints (Windows)
       if: matrix.os == 'windows-latest'
       shell: cmd
       run: |
         call testenv\Scripts\activate
-        anaconda-ident --status
+        anaconda-ident --expect
         anaconda-keymgr --help
     - name: Test endpoints (Unix)
       if: matrix.os != 'windows-latest'
       run: |
         source ./testenv/bin/activate
-        anaconda-ident --status
+        anaconda-ident --expect
         anaconda-keymgr --help
     - name: Build an installer
       env:

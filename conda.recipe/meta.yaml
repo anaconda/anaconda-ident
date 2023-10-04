@@ -9,7 +9,7 @@ source:
 
 build:
   number: 0
-  noarch: python  # [not win]
+  noarch: python  # [not win and force_arch != "yes"]
   entry_points:
     - anaconda-ident = anaconda_ident.install:main
     - anaconda-keymgr = anaconda_ident.keymgr:main
@@ -45,7 +45,7 @@ test:
     - conda create -n testchild2 --yes
     - conda info
     - conda info --envs
-    - anaconda-ident --status
+    - anaconda-ident --expect
     - anaconda-keymgr --help
     - python tests/test_config.py
     - bash tests/test_keymgr.sh  # [unix]
