@@ -9,6 +9,7 @@ source:
 
 build:
   number: 0
+  string: py_{{ PKG_BUILDNUM }}  # [force_arch != "yes"]
   noarch: python  # [not win and force_arch != "yes"]
   entry_points:
     - anaconda-ident = anaconda_ident.install:main
@@ -21,7 +22,8 @@ requirements:
     - wheel
     - pip
   run:
-    - python>=3.6
+    - python {{ python }}  # [force_arch == "yes"]
+    - python>=3.6  # [force_arch != "yes"]
     - conda>=4.11
     - anaconda-anon-usage>=0.4.1,<1
 

@@ -35,9 +35,10 @@ jobs:
     - name: Build the package
       run: |
         source $CONDA/etc/profile.d/conda.sh
-        conda install conda-build
-        conda config --prepend channels ctools
-        if [ ${{ matrix.os }} = macos-latest ]; then args=--variants" {'force_arch':'yes'}"; fi
+        conda install conda=23.7 conda-build
+        if [ ${{ matrix.os }} == macos-latest ]; then args="--python 3.10 --variants {'force_arch':'yes'}"; fi
+        if [ ${{ matrix.os }} == windows-latest ]; then args="--python 3.10"; fi
+        echo "ARGS: $args"
         conda build conda.recipe $args
         mv $CONDA/conda-bld .
         # This ensures the noarch repodata.json is not clobbered
