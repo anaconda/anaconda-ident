@@ -8,6 +8,7 @@ source:
   path: ..
 
 build:
+  number: 0
   noarch: python  # [not win]
   entry_points:
     - anaconda-ident = anaconda_ident.install:main
@@ -30,6 +31,12 @@ test:
     - tests/test_keymgr.sh  # [unix]
     - tests/config_tests.txt  # [unix]
   commands:
+    - if not exist %CONDA_PREFIX%\\etc\\conda\\activate.d\\anaconda-ident_activate.bat exit 1  # [win]
+    - if not exist %CONDA_PREFIX%\\Scripts\\.anaconda-ident-pre-unlink.bat exit 1  # [win]
+    - if not exist %CONDA_PREFIX%\\Scripts\\.anaconda-ident-post-link.bat exit 1  # [win]
+    - if [ ! -f $CONDA_PREFIX/etc/conda/activate.d/anaconda-ident_activate.sh ]; then exit 1; fi  # [unix]
+    - if [ ! -f $CONDA_PREFIX/bin/.anaconda-ident-pre-unlink.sh ]; then exit 1; fi  # [unix]
+    - if [ ! -f $CONDA_PREFIX/bin/.anaconda-ident-post-link.sh ]; then exit 1; fi  # [unix]
     - export ANACONDA_IDENT_DEBUG=1  # [unix]
     - export PYTHONUNBUFFERED=1  # [unix]
     - set ANACONDA_IDENT_DEBUG=1  # [win]
