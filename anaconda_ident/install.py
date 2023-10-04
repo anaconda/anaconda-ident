@@ -30,6 +30,12 @@ def parse_argv():
         help="Enable operation if necessary and exit immediately, "
         "without reading or modifying the current configuration.",
     )
+    # For testing only: exit with -1 if not enabled
+    g.add_argument(
+        "--expect",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
     g.add_argument(
         "--disable",
         action="store_true",
@@ -115,9 +121,9 @@ def parse_argv():
 
     sys.argv[0] = "anaconda-ident"
     args = p.parse_args()
-    if (args.clean or args.verify or args.status or args.version) and sum(
-        v is not None for v in vars(args).values()
-    ) != 7:
+    if (
+        args.clean or args.verify or args.expect or args.status or args.version
+    ) and sum(v is not None for v in vars(args).values()) != 8:
         what = "clean" if args.clean else ("status" if args.status else "verify")
         print("WARNING: --%s overrides other operations" % what)
     return args, p
@@ -229,7 +235,7 @@ def _patch(args, pfile, pname):
         print(f"  {tpath}: {status}")
     if status.startswith("NOT"):
         return
-    enable = (args.enable or args.verify) and patch_text
+    enable = (args.enable or args.verify or args.expect) and patch_text
     disable = args.disable or args.clean or not patch_text
     if status == "NEEDS UPDATE":
         need_change = True
@@ -244,6 +250,8 @@ def _patch(args, pfile, pname):
         need_change = False
     if not need_change:
         return
+    if args.expect and need_change:
+        error("not properly enabled", fatal=True)
     if verbose:
         print(f"    {status} patch...", end="")
     renamed = False
@@ -583,7 +591,7 @@ def main():
         print(f"  site-packages: {relpath(_sp_dir(), sys.prefix)}")
 
     manage_patch(args)
-    if not args.verify:
+    if not (args.verify or args.expect):
         fname = join(sys.prefix, "condarc.d", "anaconda_ident.yml")
         condarc = read_condarc(args, fname)
         if not args.status:
