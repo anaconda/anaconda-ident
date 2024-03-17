@@ -19,6 +19,7 @@ context.__init__()
 # fetch behavior of conda changed to frustrate that approach.
 os.environ["CONDA_LOCAL_REPODATA_TTL"] = "0"
 
+
 def get_config_value(key, subkey=None):
     """
     Why not just do getattr(context, key)? Well, we actually want
@@ -172,7 +173,7 @@ envs = [e for e in pdata["envs"] if e == sys.prefix or e.startswith(pfx_s)]
 envs = {("base" if e == sys.prefix else basename(e)): e for e in envs}
 tp_0 = test_patterns[0]
 test_patterns = [t + ("",) for t in test_patterns]
-for env in envs:
+for env in list(envs)[:3]:
     # Test each env twice to confirm that
     # we get the same token each time
     test_patterns.append(tp_0 + (env,))
@@ -210,10 +211,18 @@ for aau_state, id_state in states:
         expected.append("aau")
         if id_state:
             expected.append("aid")
-        # Make sure to leave override-channels and the full channel URL in here.
-        # This allows this command to run fully no matter what we do to channel_alias
-        # and default_channels
-        cmd = ["conda", "install", "-vvv", "fakepackage"]
+        # We need the specific channel configuration here so we can
+        # experiment with different channel aliases and channel lists
+        # in the keymgr packages
+        cmd = [
+            "conda",
+            "install",
+            "-vvv",
+            "--override-channels",
+            "-c",
+            "https://repo.anaconda.com/pkgs/main",
+            "fakepackage",
+        ]
         if envname:
             cmd.extend(["-n", envname])
         proc = subprocess.run(

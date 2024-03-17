@@ -20,13 +20,7 @@ concurrency:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
-    defaults:
-      run:
-        shell: bash
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
     - name: Retrieve the source code
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
@@ -35,14 +29,13 @@ jobs:
     - name: Build the package
       run: |
         source $CONDA/etc/profile.d/conda.sh
-        conda install conda=23.7 conda-build
-        if [ ${{ matrix.os }} == macos-latest ]; then args="--python 3.10 --variants {'force_arch':'yes'}"; fi
-        if [ ${{ matrix.os }} == windows-latest ]; then args="--python 3.10"; fi
-        echo "ARGS: $args"
-        conda build conda.recipe $args
+        conda activate base
+        conda install conda conda-build
+        conda build conda.recipe --no-test
+        aid_version=$(conda search local::anaconda-ident | grep ^anaconda-ident | awk '{print $2}' | tail -1)
+        conda install -c local anaconda-ident=$aid_version
+        bash tests/test_keymgr.sh --build-only
         mv $CONDA/conda-bld .
-        # This ensures the noarch repodata.json is not clobbered
-        if [ ${{ matrix.os }} != ubuntu-latest ]; then rm -rf conda-bld/noarch; fi
     - name: Upload build artifacts
       uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4
       with:
@@ -58,7 +51,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        cversion: ['23.9.0', '23.7.4', '23.5.2', '23.3.1', '22.11.1', '4.14.0', '4.11.0']
+        cversion: ['4.11.0', '4.14.0', '22.11.1', '23.3.1', '23.7.3', '23.10.0', '24.1.2']
     runs-on: ${{ matrix.os }}
     steps:
     - name: Retrieve the source code
@@ -77,28 +70,12 @@ jobs:
         aid_version=$(conda search local::anaconda-ident | grep ^anaconda-ident | awk '{print $2}' | tail -1)
         echo "AID_VERSION=$aid_version" >> "$GITHUB_ENV"
         echo "C_VERSION=${{ matrix.cversion }}" >> "$GITHUB_ENV"
-        if [ $cversion == '23.9' ]; then
-          echo "MAMBA=conda-libmamba-solver" >> "$GITHUB_ENV"
-        fi
-    - name: Build test environments
+    - name: Build test environment
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda config --prepend channels ctools
-        conda install -c local constructor conda-index anaconda-ident=$AID_VERSION
-        conda create -p ./testenv -c local anaconda-ident anaconda-ident=$AID_VERSION conda=$C_VERSION $MAMBA
-    - name: Test endpoints (Windows)
-      if: matrix.os == 'windows-latest'
-      shell: cmd
-      run: |
-        call testenv\Scripts\activate
-        anaconda-ident --expect
-        anaconda-keymgr --help
-    - name: Test endpoints (Unix)
-      if: matrix.os != 'windows-latest'
-      run: |
-        source ./testenv/bin/activate
-        anaconda-ident --expect
-        anaconda-keymgr --help
+        conda install -c local conda constructor conda-index anaconda-ident=$AID_VERSION
+        conda create -p ./testenv -c local anaconda-ident anaconda-ident=$AID_VERSION conda=$C_VERSION
     - name: Build an installer
       env:
         TEST_REPO_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
@@ -125,25 +102,11 @@ jobs:
       run: |
         cd tests
         bash test_environment.sh ~/aidtest "$TEST_REPO_TOKEN"
-    - name: Test the package
+    - name: Run local tests
       run: |
-        set -x
-        if [ -f ./testenv/Scripts/conda.exe ]; then \
-           sed -i.bak "s@CONDA_EXE=.*@CONDA_EXE=$PWD/testenv/Scripts/conda.exe@" testenv/etc/profile.d/conda.sh; \
-        fi
-        source ./testenv/*/activate
-        cd tests
-        conda create -n testchild1 --yes
-        conda create -n testchild2 --yes
-        python -m anaconda_ident.install --status
-        python test_config.py
-        bash test_keymgr.sh
-        if [ -n "$MAMBA" ]; then
-          conda config --set solver libmamba
-          python test_config.py
-          bash test_keymgr.sh
-          conda config --set solver classic
-        fi
+        source $CONDA/etc/profile.d/conda.sh
+        conda activate base
+        bash -x tests/run_all_tests.sh --test-only
   upload:
     needs: test
     runs-on: ubuntu-latest
