@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import sys
 from os.path import basename, join
@@ -13,6 +14,10 @@ from anaconda_ident import patch as patch
 
 context.__init__()
 
+# Make sure we always try to fetch. Prior versions of this
+# test code used a fake channel to accomplish this, but the
+# fetch behavior of conda changed to frustrate that approach.
+os.environ["CONDA_LOCAL_REPODATA_TTL"] = "0"
 
 def get_config_value(key, subkey=None):
     """
@@ -208,15 +213,7 @@ for aau_state, id_state in states:
         # Make sure to leave override-channels and the full channel URL in here.
         # This allows this command to run fully no matter what we do to channel_alias
         # and default_channels
-        cmd = [
-            "conda",
-            "install",
-            "-vvv",
-            "--override-channels",
-            "-c",
-            "https://repo.anaconda.com/pkgs/fakechannel",
-            "fakepackage",
-        ]
+        cmd = ["conda", "install", "-vvv", "fakepackage"]
         if envname:
             cmd.extend(["-n", envname])
         proc = subprocess.run(
@@ -225,8 +222,18 @@ for aau_state, id_state in states:
             capture_output=True,
             text=True,
         )
-        user_agent = [v for v in proc.stderr.splitlines() if "User-Agent" in v]
-        user_agent = user_agent[0].split(":", 1)[-1].strip() if user_agent else ""
+        user_agent = ""
+        for v in proc.stderr.splitlines():
+            # Unfortunately conda has evolved how it logs request headers
+            # So this regular expression attempts to match multiple forms
+            # > User-Agent: conda/...
+            # .... {'User-Agent': 'conda/...', ...}
+            match = re.match(r'.*User-Agent(["\']?): *(["\']?)(.+)', v)
+            if match:
+                _, delim, user_agent = match.groups()
+                if delim and delim in user_agent:
+                    user_agent = user_agent.split(delim, 1)[0]
+                break
         new_values = [t.split("/", 1) for t in user_agent.split(" ") if "/" in t]
         new_values = {k: v for k, v in new_values if k in all_fields}
         header = " ".join(f"{k}/{v}" for k, v in new_values.items())
