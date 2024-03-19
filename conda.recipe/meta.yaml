@@ -31,14 +31,16 @@ test:
   source_files:
     - tests/
   commands:
-    - if [ ! -f $CONDA_PREFIX/etc/conda/activate.d/anaconda-ident_activate.sh ]; then exit 1; fi
-    - if [ ! -f $CONDA_PREFIX/etc/conda/activate.d/anaconda-ident_activate.bat ]; then exit 1; fi
-    - if [ ! -f $CONDA_PREFIX/bin/.anaconda-ident-pre-unlink.sh ]; then exit 1; fi
-    - if [ ! -f $CONDA_PREFIX/bin/.anaconda-ident-pre-unlink.bat ]; then exit 1; fi
-    - if [ ! -f $CONDA_PREFIX/bin/.anaconda-ident-post-link.sh ]; then exit 1; fi
-    - if [ ! -f $CONDA_PREFIX/bin/.anaconda-ident-post-link.bat ]; then exit 1; fi
-    - export ANACONDA_IDENT_DEBUG=1
-    - export PYTHONUNBUFFERED=1
+    - if not exist %CONDA_PREFIX%\\etc\\conda\\activate.d\\anaconda-ident_activate.bat exit 1  # [win]
+    - if not exist %CONDA_PREFIX%\\Scripts\\.anaconda-ident-pre-unlink.bat exit 1  # [win]
+    - if not exist %CONDA_PREFIX%\\Scripts\\.anaconda-ident-post-link.bat exit 1  # [win]
+    - if [ ! -f $CONDA_PREFIX/etc/conda/activate.d/anaconda-ident_activate.sh ]; then exit 1; fi  # [unix]
+    - if [ ! -f $CONDA_PREFIX/bin/.anaconda-ident-pre-unlink.sh ]; then exit 1; fi  # [unix]
+    - if [ ! -f $CONDA_PREFIX/bin/.anaconda-ident-post-link.sh ]; then exit 1; fi  # [unix]
+    - export ANACONDA_IDENT_DEBUG=1  # [unix]
+    - export PYTHONUNBUFFERED=1  # [unix]
+    - set ANACONDA_IDENT_DEBUG=1  # [win]
+    - set PYTHONUNBUFFERED=1  # [win]
     - conda create -n testchild1 --yes
     - conda create -n testchild2 --yes
     - conda info

@@ -31,7 +31,7 @@ jobs:
         source $CONDA/etc/profile.d/conda.sh
         conda activate base
         conda install conda conda-build
-        conda build conda.recipe
+        conda build conda.recipe --no-test
         aid_version=$(conda search local::anaconda-ident | grep ^anaconda-ident | awk '{print $2}' | tail -1)
         conda install -c local anaconda-ident=$aid_version
         bash tests/test_keymgr.sh --build-only
@@ -42,6 +42,22 @@ jobs:
         if-no-files-found: error
         name: conda-bld
         path: conda-bld/
+  # This is just to test that the windows build process works. We do not
+  # actually use this artifact.
+  build-win:
+    runs-on: windows-latest
+    steps:
+    - name: Retrieve the source code
+      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+      with:
+        fetch-depth: 0
+    - name: Build the package
+      shell: bash
+      run: |
+        source $CONDA/etc/profile.d/conda.sh
+        conda activate base
+        conda install conda conda-build
+        conda build conda.recipe
   test:
     needs: build
     defaults:
@@ -69,16 +85,16 @@ jobs:
       run: |
         mv conda-bld $CONDA/
         source $CONDA/etc/profile.d/conda.sh
-        conda install constructor
+        conda install constructor conda-index
         aid_version=$(conda search local::anaconda-ident | grep ^anaconda-ident | awk '{print $2}' | tail -1)
         CONDA_PREFIX=$CONDA bash tests/test_installer.sh $TEST_REPO_TOKEN $aid_version ${{ matrix.cversion }}
     - name: Run the installer (Windows)
       if: matrix.os == 'windows-latest'
       shell: cmd
-      run: start /wait tests/AIDTest-1.0-Windows-x86_64.exe /S /D=%USERPROFILE%\aidtest
+      run: start /wait AIDTest-1.0-Windows-x86_64.exe /S /D=%USERPROFILE%\aidtest
     - name: Run the installer (Unix)
       if: matrix.os != 'windows-latest'
-      run: bash tests/AIDTest*.sh -b -p ~/aidtest -k
+      run: bash AIDTest*.sh -b -p ~/aidtest -k
     - name: Test the installed environment
       env:
         TEST_REPO_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
@@ -88,10 +104,12 @@ jobs:
     - name: Run local tests
       run: |
         source $CONDA/etc/profile.d/conda.sh
-        aid_version=$(conda search local::anaconda-ident | grep ^anaconda-ident | awk '{print $2}' | tail -1)
-        conda create -p ./testenv anaconda-ident=$aid_version conda=${{ matrix.cversion }}
+        aid_version=$(conda search local::anaconda-ident | awk '{print $2}' | tail -1)
+        conda create -p ./testenv -c local anaconda-ident=$aid_version conda=${{ matrix.cversion }}
         source ./testenv/etc/profile.d/conda.sh
         conda activate base
+        conda create -n testchild1 --yes
+        conda create -n testchild2 --yes
         python tests/test_config.py
   upload:
     needs: test
