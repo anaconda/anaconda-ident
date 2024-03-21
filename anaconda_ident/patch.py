@@ -1,14 +1,14 @@
 import getpass
 import platform
 import sys
-from os import environ
-from os.path import basename, exists, join
+from os import environ, sep
+from os.path import abspath, basename, exists, expanduser, expandvars, join
 
-import conda.base.context as c_context
 from anaconda_anon_usage import patch as aau_patch
 from anaconda_anon_usage import tokens
 from anaconda_anon_usage import utils as aau_utils
 from anaconda_anon_usage.utils import _debug, cached
+from conda.base import context as c_context
 from conda.base.context import (
     Context,
     MapParameter,
@@ -16,7 +16,16 @@ from conda.base.context import (
     PrimitiveParameter,
     context,
     env_name,
+    locate_prefix_by_name,
 )
+
+# Older version of conda (e.g., 4.11) have a circular import
+# here. We are choosing not to support activation heartbeats
+# in this case
+try:
+    from conda.activate import _Activator
+except Exception:
+    _Actvator = None
 
 from . import __version__
 
@@ -44,6 +53,18 @@ _client_token_formats = {
     "hostenv": "csehn",
     "full": "cseuhn",
 }
+
+
+def normalize_prefix(value=None):
+    try:
+        if value in (None, "", "root", "base"):
+            return sys.prefix
+        elif sep in value:
+            return abspath(expanduser(expandvars(value)))
+        else:
+            return locate_prefix_by_name(value)
+    except Exception:
+        return None
 
 
 def get_environment_prefix():
@@ -131,6 +152,19 @@ def _aid_user_agent(ctx):
     return result
 
 
+def _aid_activate(self):
+    if context.anaconda_heartbeat:
+        from .heartbeat import attempt_heartbeat
+
+        context.checked_prefix = normalize_prefix(self.env_name_or_prefix)
+        if context.checked_prefix is None:
+            _debug("Invalid environment; skipping heartbeat")
+        else:
+            attempt_heartbeat("main", "activate", verbose=False, standalone=False)
+            _debug("Heartbeat attempted")
+    return self._old_activate()
+
+
 # conda.base.context.SEARCH_PATH
 # Add anaconda_ident's old condarc location for back compatibility
 # We will deprecate this as we migrate existing customers
@@ -156,8 +190,23 @@ if not hasattr(Context, "repo_tokens"):
     Context.repo_tokens = _param
     Context.parameter_names += (_param._set_name("repo_tokens"),)
 
+# conda.base.context.Context
+# Adds anaconda_heartbeat as a managed boolean config parameter
+if not hasattr(Context, "anaconda_heartbeat"):
+    _debug("Adding the anaconda_heartbeat config parameter")
+    _param = ParameterLoader(PrimitiveParameter(False))
+    Context.anaconda_heartbeat = _param
+    Context.parameter_names += (_param._set_name("anaconda_heartbeat"),)
+
 # anaconda_anon_usage.patch._new_user_agent
 if not hasattr(aau_patch, "_old_aau_user_agent"):
     _debug("Replacing anaconda_anon_usage user agent in module")
     aau_patch._old_aau_user_agent = aau_patch._new_user_agent
     aau_patch._new_user_agent = _aid_user_agent
+
+# conda.activate._Activator.activate
+# Adds activation heartbeats
+if _Activator is not None and not hasattr(_Activator, "_old_activate"):
+    _debug("Replacing activate function")
+    _Activator._old_activate = _Activator.activate
+    _Activator.activate = _aid_activate

@@ -18,6 +18,7 @@ setup(
         "console_scripts": [
             "anaconda-ident = anaconda_ident.install:main",
             "anaconda-keymgr = anaconda_ident.keymgr:main",
+            "anaconda-heartbeat = anaconda_ident.heartbeat:main",
         ],
     },
     classifiers=[

@@ -83,8 +83,17 @@ def parse_argv():
         help="Print a verbose explanation of the progress.",
     )
     p.add_argument(
+        "--heartbeat",
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="If selected, adds a heartbeat request to each environment activation. "
+        "This takes the form of a single HEAD request attempt to the tokenized repository "
+        "with silent failure and a short timeout for negligible disruption.",
+    )
+    p.add_argument(
         "--compatibility",
-        action="store_true",
+        default=False,
+        action=argparse.BooleanOptionalAction,
         help="Stores the config file in a second location in the environment. "
         "Older versions of anaconda-ident stored it in a non-standard location; "
         "this has been corrected in newer versions of the tool. For existing "
@@ -238,6 +247,10 @@ def build_config_dict(args):
     result["anaconda_ident"] = args.config_string or "default"
     if verbose:
         print("anaconda_ident:", result["anaconda_ident"])
+    if args.heartbeat:
+        result["anaconda_heartbeat"] = True
+    if verbose:
+        print("anaconda_heartbeat:", bool(args.heartbeat))
     if args.default_channel:
         nchan = []
         for c1 in args.default_channel:

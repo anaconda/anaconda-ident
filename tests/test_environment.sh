@@ -105,6 +105,7 @@ else
 fi
 
 echo -n "user agent ... "
+# need the --json output so the user agent sanitizer is bypassed
 user_agent=$($T_PYTHON -m conda info --json | sed -nE 's@^ *"user_agent": *"([^"]*).*@\1@p')
 if echo "$user_agent" | grep -q o/installertest; then
   echo "yes"

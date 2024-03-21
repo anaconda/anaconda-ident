@@ -91,6 +91,14 @@ def parse_argv():
         "Supply an empty string to clear the token.",
     )
     p.add_argument(
+        "--heartbeat",
+        default=None,
+        action=argparse.BooleanOptionalAction,
+        help="If selected, adds a heartbeat request to each environment activation. "
+        "This takes the form of a single HEAD request attempt to the tokenized repository "
+        "with silent failure and a short timeout for negligible disruption.",
+    )
+    p.add_argument(
         "--write-token",
         default=None,
         action="store_true",
@@ -365,6 +373,9 @@ def _print_condarc(args, config, changes=False):
                 print(f"  - {k}: {v[:6]}...")
         else:
             print("  repo tokens: <none>")
+    if not changes or args.heartbeat is not None:
+        value = bool(config.get("anaconda_heartbeat"))
+        print(f"| heartbeat: {value or '<none>'}")
 
 
 def _set_or_delete(d, k, v):
@@ -438,6 +449,11 @@ def manage_condarc(args, condarc):
             defchan = "/".join(defchan[0].strip().split("/", 3)[:3]) + "/"
             tokens[defchan] = args.repo_token.strip()
         _set_or_delete(condarc, "repo_tokens", tokens)
+        changes = True
+    # heartbeat
+    if args.heartbeat is not None:
+        heartbeat = args.heartbeat or None
+        _set_or_delete(condarc, "anaconda_heartbeat", heartbeat)
         changes = True
     _set_or_delete(condarc, "add_anaconda_token", bool(condarc.get("repo_tokens")))
     if changes and verbose:

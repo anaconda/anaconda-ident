@@ -6,6 +6,7 @@ import sys
 from os.path import basename, join
 
 from anaconda_anon_usage import __version__ as aau_version
+from conda import __version__ as c_version
 from conda.base.context import context
 from conda.models.channel import Channel
 
@@ -173,7 +174,7 @@ envs = [e for e in pdata["envs"] if e == sys.prefix or e.startswith(pfx_s)]
 envs = {("base" if e == sys.prefix else basename(e)): e for e in envs}
 tp_0 = test_patterns[0]
 test_patterns = [t + ("",) for t in test_patterns]
-for env in list(envs)[:3]:
+for env in ["base"] + list(set(envs) - {"base"})[:2]:
     # Test each env twice to confirm that
     # we get the same token each time
     test_patterns.append(tp_0 + (env,))
@@ -184,6 +185,57 @@ nfailed = 0
 other_tokens = {"aau": aau_version, "aid": aid_version}
 all_session_tokens = set()
 all_environments = set()
+
+
+def _verify_user_agent(output, expected, marker=None):
+    # Unfortunately conda has evolved how it logs request headers
+    # So this regular expression attempts to match multiple forms
+    # > User-Agent: conda/...
+    # .... {'User-Agent': 'conda/...', ...}
+    user_agent = ""
+    marker = marker or "User-Agent"
+    MATCH_RE = r".*" + marker + r'(["\']?): *(["\']?)(.+)'
+    for v in output.splitlines():
+        match = re.match(MATCH_RE, v)
+        if match:
+            _, delim, user_agent = match.groups()
+            if delim and delim in user_agent:
+                user_agent = user_agent.split(delim, 1)[0]
+            break
+
+    new_values = [t.split("/", 1) for t in user_agent.split(" ") if "/" in t]
+    new_values = {k: v for k, v in new_values if k in all_fields}
+    header = " ".join(f"{k}/{v}" for k, v in new_values.items())
+
+    # Confirm that all of the expected tokens are present
+    status = []
+    missing = set(expected) - set(new_values)
+    extras = set(new_values) - set(expected)
+    if missing:
+        status.append(f"{','.join(missing)} MISSING")
+    if extras:
+        status.append(f"{','.join(extras)} EXTRA")
+    modified = []
+    duplicated = []
+    for k, v in new_values.items():
+        if k == "s":
+            if new_values["s"] in all_session_tokens:
+                status.append("SESSION")
+            all_session_tokens.add(new_values["s"])
+            continue
+        if k == "e":
+            k = "e/" + (envname or "base")
+            if k not in other_tokens and v in all_environments:
+                duplicated.append("e")
+            all_environments.add(v)
+        if other_tokens.setdefault(k, v) != v:
+            modified.append(k)
+    if duplicated:
+        status.append(f"DUPLICATED: {','.join(duplicated)}")
+    if modified:
+        status.append(f"MODIFIED: {','.join(modified)}")
+    return ", ".join(status), header
+
 
 id_last = False
 need_header = True
@@ -231,50 +283,7 @@ for aau_state, id_state in states:
             capture_output=True,
             text=True,
         )
-        user_agent = ""
-        for v in proc.stderr.splitlines():
-            # Unfortunately conda has evolved how it logs request headers
-            # So this regular expression attempts to match multiple forms
-            # > User-Agent: conda/...
-            # .... {'User-Agent': 'conda/...', ...}
-            match = re.match(r'.*User-Agent(["\']?): *(["\']?)(.+)', v)
-            if match:
-                _, delim, user_agent = match.groups()
-                if delim and delim in user_agent:
-                    user_agent = user_agent.split(delim, 1)[0]
-                break
-        new_values = [t.split("/", 1) for t in user_agent.split(" ") if "/" in t]
-        new_values = {k: v for k, v in new_values if k in all_fields}
-        header = " ".join(f"{k}/{v}" for k, v in new_values.items())
-        # Confirm that all of the expected tokens are present
-
-        missing = set(expected) - set(new_values)
-        extras = set(new_values) - set(expected)
-        status = []
-        if missing:
-            status.append(f"{','.join(missing)} MISSING")
-        if extras:
-            status.append(f"{','.join(extras)} EXTRA")
-        modified = []
-        duplicated = []
-        for k, v in new_values.items():
-            if k == "s":
-                if new_values["s"] in all_session_tokens:
-                    status.append("SESSION")
-                all_session_tokens.add(new_values["s"])
-                continue
-            if k == "e":
-                k = "e/" + (envname or "base")
-                if k not in other_tokens and v in all_environments:
-                    duplicated.append("e")
-                all_environments.add(v)
-            if other_tokens.setdefault(k, v) != v:
-                modified.append(k)
-        if duplicated:
-            status.append(f"DUPLICATED: {','.join(duplicated)}")
-        if modified:
-            status.append(f"MODIFIED: {','.join(modified)}")
-        status = ", ".join(status)
+        status, header = _verify_user_agent(proc.stderr, expected)
         if need_header:
             need_header = False
             print("|", header)
@@ -307,6 +316,63 @@ for k, v in other_tokens.items():
         if token != v:
             nfailed += 1
 print("---------------------------")
+
+
+if int(c_version.split(".", 1)[0]) <= 4:
+    print("Skipping heartbeat tests for conda", c_version)
+    print("FAILURES:", nfailed)
+    sys.exit(nfailed)
+
+
+print("")
+print("Testing activation")
+print("------------------")
+expected = list(dict.fromkeys("cse" + tp_0[1]))
+expected.extend(("aid", "aau"))
+need_header = True
+os.environ["CONDA_ANACONDA_IDENT"] = tp_0[0]
+os.environ["ANACONDA_IDENT_DEBUG"] = "1"
+if token_env:
+    url_string = "heartbeat url: " + next(iter(token_env)).rstrip("/") + "/"
+for hval in ("true", "false"):
+    os.environ["CONDA_ANACONDA_HEARTBEAT"] = hval
+    for envname in envs:
+        other_tokens["n"] = envname
+        for stype in ("posix", "cmd.exe", "powershell"):
+            cmd = ["conda", "shell." + stype, "activate", envname]
+            proc = subprocess.run(
+                cmd,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            header = status = ""
+            if hval == "true":
+                if "Heartbeat attempted" not in proc.stderr:
+                    status = "NO HEARTBEAT"
+                else:
+                    status, header = _verify_user_agent(
+                        proc.stderr, expected, "Full client token"
+                    )
+                    if token_env and url_string not in proc.stderr:
+                        if status:
+                            status += ", "
+                        status += "WRONG URL"
+            elif "Heartbeat attempted" in proc.stderr:
+                status = "HEARTBEAT NOT DISABLED"
+            if need_header:
+                print(f"hval  shell     {'envname':{maxlen}} status")
+                print(f"----- ---------- {'-' * maxlen} ----------")
+                need_header = False
+            print(f"{hval:5} {stype:10} {envname:{maxlen}} {status or 'OK'}")
+            if status:
+                print("|", " ".join(cmd))
+                for line in proc.stderr.splitlines():
+                    if line.strip():
+                        print("!", line)
+                if header:
+                    print("|", header)
+                nfailed += 1
 
 print("FAILURES:", nfailed)
 sys.exit(nfailed)
