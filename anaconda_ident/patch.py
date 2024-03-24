@@ -1,6 +1,8 @@
+import base64
 import getpass
 import platform
 import sys
+from hashlib import blake2b
 from os import environ, sep
 from os.path import abspath, basename, exists, expanduser, expandvars, join
 
@@ -66,32 +68,51 @@ def get_environment_prefix():
     )
 
 
-def get_environment_name(prefix=None):
+def _hash_string(what, s, salt=None):
+    h = blake2b(s.encode("utf-8"), salt=salt or b"")
+    data = h.digest()[:16]
+    result = base64.urlsafe_b64encode(data).strip(b"=").decode("ascii")
+    _debug("Hashed %s token: %s", what, result)
+    return result
+
+
+def get_environment_name(prefix=None, hash=False, salt=None):
     prefix = prefix or get_environment_prefix()
-    return basename(env_name(prefix)) if prefix else None
+    if not prefix:
+        return None
+    value = basename(env_name(prefix))
+    if hash:
+        value = _hash_string("environment", value, salt)
+    return value
 
 
-def get_username():
+def get_username(hash=False, salt=None):
     try:
-        return getpass.getuser()
+        result = getpass.getuser()
+        if hash:
+            result = _hash_string("username", result, salt)
+        return result
     except Exception as exc:
         _debug("getpass.getuser raised an exception: %s" % exc)
 
 
-def get_hostname():
+def get_hostname(hash=False, salt=None):
     value = platform.node()
     if not value:
         _debug("platform.node returned an empty value")
+    if hash:
+        value = _hash_string("hostname", value, salt)
     return value
 
 
 def client_token_type():
     token_type = context.anaconda_ident
     _debug("Token config from context: %s", token_type)
+    org = salt = None
     if ":" in token_type:
-        token_type, org = token_type.split(":", 1)
-    else:
-        org = ""
+        token_type, salt = token_type.split(":", 1)
+        org = salt.split(":", 1)[0]
+        salt = salt.encode("utf-8")[: blake2b.SALT_SIZE]
     fmt = _client_token_formats.get(token_type, token_type)
     _debug("Preliminary usage tokens: %s", fmt)
     if org and "o" not in fmt:
@@ -100,15 +121,15 @@ def client_token_type():
     elif not org and "o" in fmt:
         _debug("Expected an organization string; none provided.")
         fmt = fmt.replace("o", "")
-    fmt = "cse" + "".join(dict.fromkeys(c for c in fmt if c in "uhon"))
+    fmt = "cse" + "".join(dict.fromkeys(c for c in fmt if c in "uhonUHN"))
     _debug("Final token config: %s %s", fmt, org)
-    return fmt, org
+    return fmt, org, salt
 
 
 @cached
 def client_token_string():
     parts = ["aau/" + tokens.version_token(), "aid/" + __version__]
-    fmt, org = client_token_type()
+    fmt, org, salt = client_token_type()
     pfx = get_environment_prefix()
     _debug("Environmment: %s", pfx)
     for code in fmt:
@@ -119,14 +140,14 @@ def client_token_string():
             value = tokens.session_token()
         elif code == "e":
             value = tokens.environment_token(pfx)
-        elif code == "u":
-            value = get_username()
-        elif code == "h":
-            value = get_hostname()
+        elif code in "uU":
+            value = get_username(hash=code == "U", salt=salt)
+        elif code in "hH":
+            value = get_hostname(hash=code == "H", salt=salt)
         elif code == "o":
             value = org
-        elif code == "n":
-            value = get_environment_name(pfx)
+        elif code in "nN":
+            value = get_environment_name(pfx, hash=code == "N", salt=salt)
         else:
             _debug("Unexpected client token code: %s", code)
             value = None

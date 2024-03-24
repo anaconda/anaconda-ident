@@ -132,16 +132,20 @@ test_patterns = (
     ("userhost", "uh"),
     ("hostenv", "hn"),
     ("full", "uhn"),
+    ("fullhash", "UHN"),
     ("default:org2", "o"),
     (":org3", "o"),
     ("none:org4", "o"),
     ("u", "u"),
     ("h", "h"),
     ("n", "n"),
+    ("U", "U"),
+    ("H", "H"),
+    ("N", "N"),
     ("o:org4", "o"),
     ("o", ""),
 )
-all_fields = {"aau", "aid", "c", "s", "e", "u", "h", "n", "o"}
+all_fields = {"aau", "aid", "c", "s", "e", "u", "h", "n", "o", "U", "H", "N"}
 states = (
     (True, True),
     (False, True),
