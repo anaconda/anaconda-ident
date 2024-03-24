@@ -19,6 +19,7 @@ setup(
             "anaconda-ident = anaconda_ident.install:main",
             "anaconda-keymgr = anaconda_ident.keymgr:main",
             "anaconda-heartbeat = anaconda_ident.heartbeat:main",
+            "anaconda-ident-hash = anaconda_ident.tokens:main",
         ],
     },
     classifiers=[

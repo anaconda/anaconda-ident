@@ -151,22 +151,10 @@ All of the tokens produced by `anaconda-ident` take the form
    [`platform.node`](https://docs.python.org/3/library/platform.html#platform.node) method.
 - `n`: environment name. This is the name of the environment
   directory (not the full path), or `base` for the root environment.
-- `U`, `H`, and `N`: these are _hashed_ versions of the username, hostname, and environment name (more on this below).
+- `U`, `H`, and `N`: these are _hashed_ versions of the username, hostname, and environment name (see the section "Hashed identifier tokens" below).
 - `o`: organization. This token is an arbitrary string provided
   by the configuration itself, and can be used, for instance,
   to specify the group the user belongs to.
-
-#### Hashed tokens
-
-The _hashed_ username, environment, and hostname tokens provide
-a measure of privacy preservation by applying a hash function, salted
-with the organization string, to the original values. While
-this approach is not cryptographically secure, it would be
-expensive for someone to extract the original identifying data
-from a hashed token. At the same time, someone with knowledge of
-the underlying information (username, environment, hostname, and
-organizations string) can readily filter applicable logs for
-records that correspond to it.
 
 ### The configuration string
 
@@ -218,7 +206,7 @@ insert a line; e.g.
 anaconda_ident: userhost:my_org.
 ```
 
-### Advanced: configuration package creation
+### Configuration package creation
 
 A key feature of the `anaconda_ident` package is the ability
 to create a sidecar conda package containing any combination
@@ -252,6 +240,34 @@ The above command will create a package called
 If this package is installed into a root conda environment,
 it will automatically activate `anaconda-ident` and configure
 it according to the settings provided.
+
+### Advanced: hashed identifier tokens
+
+The _hashed_ username, environment, and hostname tokens provide
+a measure of privacy preservation by applying a hash function, salted
+with the organization string, to the original values. While
+this approach is not cryptographically secure, it would be
+expensive for someone to extract the original identifying data
+from a hashed token. At the same time, someone with knowledge of
+the underlying information (username, environment, hostname, and
+organizations string) can readily filter applicable logs for
+records that correspond to it.
+
+A command-line utility `anaconda-ident-hash` has been provided
+to enable the hash values to be computed for filtering uses:
+
+```
+anaconda-ident-hash <environment|username|hostname> <value> <organization>
+```
+The `organization` value must exactly match the organization
+string supplied to the `anaconda_ident` configuration. For
+example,
+
+```
+anaconda-ident-hash hostname mgrant-mbp anaconda
+```
+returns `y4IMbsbNCLeEKqSjweHQkg`, the token generated for the
+hostname `mgrant-mbp` for organization `anaconda`.
 
 ## Distributing `anaconda-ident`
 

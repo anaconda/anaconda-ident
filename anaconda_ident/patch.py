@@ -1,8 +1,6 @@
-import base64
 import getpass
 import platform
 import sys
-from hashlib import blake2b
 from os import environ, sep
 from os.path import abspath, basename, exists, expanduser, expandvars, join
 
@@ -23,6 +21,7 @@ from conda.base.context import (
 )
 
 from . import __version__
+from .tokens import hash_string
 
 BAKED_CONDARC = join(sys.prefix, "etc", "anaconda_ident.yml")
 
@@ -47,7 +46,7 @@ _client_token_formats = {
     "userhost": "cseuh",
     "hostenv": "csehn",
     "full": "cseuhn",
-    "fullhash": "cseUHN"
+    "fullhash": "cseUHN",
 }
 
 
@@ -69,21 +68,13 @@ def get_environment_prefix():
     )
 
 
-def _hash_string(what, s, salt=None):
-    h = blake2b(s.encode("utf-8"), salt=salt or b"")
-    data = h.digest()[:16]
-    result = base64.urlsafe_b64encode(data).strip(b"=").decode("ascii")
-    _debug("Hashed %s token: %s", what, result)
-    return result
-
-
 def get_environment_name(prefix=None, hash=False, salt=None):
     prefix = prefix or get_environment_prefix()
     if not prefix:
         return None
     value = basename(env_name(prefix))
     if hash:
-        value = _hash_string("environment", value, salt)
+        value = hash_string("environment", value, salt)
     return value
 
 
@@ -91,7 +82,7 @@ def get_username(hash=False, salt=None):
     try:
         result = getpass.getuser()
         if hash:
-            result = _hash_string("username", result, salt)
+            result = hash_string("username", result, salt)
         return result
     except Exception as exc:
         _debug("getpass.getuser raised an exception: %s" % exc)
@@ -102,7 +93,7 @@ def get_hostname(hash=False, salt=None):
     if not value:
         _debug("platform.node returned an empty value")
     if hash:
-        value = _hash_string("hostname", value, salt)
+        value = hash_string("hostname", value, salt)
     return value
 
 
@@ -113,7 +104,6 @@ def client_token_type():
     if ":" in token_type:
         token_type, salt = token_type.split(":", 1)
         org = salt.split(":", 1)[0]
-        salt = salt.encode("utf-8")[: blake2b.SALT_SIZE]
     fmt = _client_token_formats.get(token_type, token_type)
     _debug("Preliminary usage tokens: %s", fmt)
     if org and "o" not in fmt:
