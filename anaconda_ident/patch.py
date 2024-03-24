@@ -8,6 +8,7 @@ from anaconda_anon_usage import patch as aau_patch
 from anaconda_anon_usage import tokens
 from anaconda_anon_usage import utils as aau_utils
 from anaconda_anon_usage.utils import _debug, cached
+from conda.activate import _Activator
 from conda.base import context as c_context
 from conda.base.context import (
     Context,
@@ -18,14 +19,6 @@ from conda.base.context import (
     env_name,
     locate_prefix_by_name,
 )
-
-# Older version of conda (e.g., 4.11) have a circular import
-# here. We are choosing not to support activation heartbeats
-# in this case
-try:
-    from conda.activate import _Activator
-except Exception:
-    _Actvator = None
 
 from . import __version__
 
