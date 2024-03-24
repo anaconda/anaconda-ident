@@ -237,11 +237,9 @@ def _patch(args, pfile, pname):
         patch_text = None
     text, status = _read(args, pfile, patch_text)
     if status == "DISABLED" and not patch_text:
-        status = "NOT REQUIRED"
+        return
     if verbose:
         print(f"  {tpath}: {status}")
-    if status.startswith("NOT"):
-        return
     enable = (args.enable or args.verify or args.expect) and patch_text
     disable = args.disable or args.clean or not patch_text
     if status == "NEEDS UPDATE":
@@ -312,6 +310,11 @@ def _patch_binstar_client(args):
     _patch(args, bfile, "patch_bc")
 
 
+def _patch_heartbeat(args):
+    bfile = join(_sp_dir(), "conda", "activate.py")
+    _patch(args, bfile, None)
+
+
 def manage_patch(args):
     if args.verbose or args.status:
         print("patch targets:")
@@ -319,6 +322,7 @@ def manage_patch(args):
     _patch_anon_usage(args)
     _patch_anaconda_client(args)
     _patch_binstar_client(args)
+    _patch_heartbeat(args)
 
 
 __yaml = None
