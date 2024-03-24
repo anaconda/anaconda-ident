@@ -290,9 +290,13 @@ def _patch(args, pfile, pname):
         print(f"    new status: {status}")
 
 
+# The only patch we need now is conda.activate
+# All other patch calls are to strip out old patch code
+
+
 def _patch_conda_context(args):
     pfile = join(_sp_dir(), "conda", "base", "context.py")
-    _patch(args, pfile, "patch")
+    _patch(args, pfile, None)
 
 
 def _patch_anon_usage(args):
@@ -302,26 +306,27 @@ def _patch_anon_usage(args):
 
 def _patch_anaconda_client(args):
     acfile = join(_sp_dir(), "conda", "gateways", "anaconda_client.py")
-    _patch(args, acfile, "patch_ac")
+    _patch(args, acfile, None)
 
 
 def _patch_binstar_client(args):
     bfile = join(_sp_dir(), "binstar_client", "utils", "config.py")
-    _patch(args, bfile, "patch_bc")
+    _patch(args, bfile, None)
 
 
 def _patch_heartbeat(args):
-    bfile = join(_sp_dir(), "conda", "activate.py")
-    _patch(args, bfile, None)
+    pfile = join(_sp_dir(), "conda", "activate.py")
+    _patch(args, pfile, "patch_hb")
 
 
 def manage_patch(args):
     if args.verbose or args.status:
-        print("patch targets:")
-    _patch_conda_context(args)
-    _patch_anon_usage(args)
-    _patch_anaconda_client(args)
-    _patch_binstar_client(args)
+        print("patch target:")
+    if not args.verify:
+        _patch_conda_context(args)
+        _patch_anon_usage(args)
+        _patch_anaconda_client(args)
+        _patch_binstar_client(args)
     _patch_heartbeat(args)
 
 

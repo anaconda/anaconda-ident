@@ -43,9 +43,8 @@ def _attempt_heartbeat(channel=None, name=None, wait=False):
     _print("anaconda-ident heartbeat", standalone=True)
     _print(line, standalone=True)
 
-    if not hasattr(context, "_aau_initialized"):
-        from anaconda_anon_usage import patch
-
+    if not hasattr(context, "_aid_initialized"):
+        from anaconda_ident import patch
         patch.main()
 
     if channel and "/" in channel:

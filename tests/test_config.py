@@ -12,6 +12,7 @@ from conda.models.channel import Channel
 from anaconda_ident import __version__ as aid_version
 from anaconda_ident import patch as patch
 
+patch.main()
 context.__init__()
 
 # Make sure we always try to fetch. Prior versions of this
@@ -152,15 +153,6 @@ test_patterns = (
     ("o", ""),
 )
 all_fields = {"aau", "aid", "c", "s", "e", "u", "h", "n", "o", "U", "H", "N"}
-states = (
-    (True, True),
-    (False, True),
-    (True, True),
-    (True, False),
-    (False, False),
-    (True, False),
-    (True, True),
-)
 
 test_org = None
 if config_env:
@@ -179,11 +171,12 @@ proc = subprocess.run(
 )
 pfx_s = join(sys.prefix, "envs") + os.sep
 pdata = json.loads(proc.stdout)
-envs = [e for e in pdata["envs"] if e == sys.prefix or e.startswith(pfx_s)]
+# Limit ourselves to two non-base environments to speed up local testing
+envs = [sys.prefix] + [e for e in pdata["envs"] if e.startswith(pfx_s)][:2]
 envs = {("base" if e == sys.prefix else basename(e)): e for e in envs}
 tp_0 = test_patterns[0]
 test_patterns = [t + ("",) for t in test_patterns]
-for env in ["base"] + list(set(envs) - {"base"})[:2]:
+for env in envs:
     # Test each env twice to confirm that
     # we get the same token each time
     test_patterns.append(tp_0 + (env,))
@@ -248,30 +241,17 @@ def _verify_user_agent(output, expected, marker=None):
 
 id_last = False
 need_header = True
-for aau_state, id_state in states:
+for aau_state in (True, False):
     os.environ["CONDA_ANACONDA_ANON_USAGE"] = "on" if aau_state else "off"
-    if id_state != id_last:
-        id_last = id_state
-        flag = "--enable" if id_state else "--disable"
-        p = subprocess.run(
-            ["python", "-m", "anaconda_ident.install", flag], capture_output=True
-        )
-        print(p.stdout.decode("utf-8").strip())
-        need_header = True
     anon_flag = "T" if aau_state else "F"
     for param, test_fields, envname in test_patterns:
         other_tokens["o"] = param.split(":", 1)[-1] if ":" in param else ""
         other_tokens["n"] = envname if envname else "base"
         os.environ["CONDA_ANACONDA_IDENT"] = param
-        if id_state:
-            test_fields = "cse" + test_fields
-        else:
-            test_fields = "cse" if aau_state else ""
+        test_fields = "cse" + test_fields
         test_fields = "".join(dict.fromkeys(test_fields))
         expected = list(test_fields)
-        expected.append("aau")
-        if id_state:
-            expected.append("aid")
+        expected.extend(("aau", "aid"))
         # We need the specific channel configuration here so we can
         # experiment with different channel aliases and channel lists
         # in the keymgr packages

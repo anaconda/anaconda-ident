@@ -21,6 +21,9 @@ setup(
             "anaconda-heartbeat = anaconda_ident.heartbeat:main",
             "anaconda-ident-hash = anaconda_ident.tokens:main",
         ],
+        "conda": [
+            "anaconda-ident-plugin = anaconda_ident.plugin"        
+        ]
     },
     classifiers=[
         "Programming Language :: Python :: 3",
