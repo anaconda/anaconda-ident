@@ -46,7 +46,7 @@ fi
 # Include flipped values of these two settings in an additional
 # settings file to test that functionality
 info_orig=$(conda config --show | grep -E '^(auto_update_conda|notify_outdated_conda):')
-info_new=$(echo "$info_orig" | sed 's@True@false@;s@False@true@' | sed 's@true@True@;s@false@False')
+info_new=$(echo "$info_orig" | sed 's@True@false@;s@False@true@' | sed 's@true@True@;s@false@False@')
 echo "$info_orig" >other_settings_test.yaml
 
 compatibility=--compatibility
