@@ -151,14 +151,27 @@ All of the tokens produced by `anaconda-ident` take the form
    [`platform.node`](https://docs.python.org/3/library/platform.html#platform.node) method.
 - `n`: environment name. This is the name of the environment
   directory (not the full path), or `base` for the root environment.
+- `U`, `H`, and `N`: these are _hashed_ versions of the username, hostname, and environment name (more on this below).
 - `o`: organization. This token is an arbitrary string provided
   by the configuration itself, and can be used, for instance,
   to specify the group the user belongs to.
 
+#### Hashed tokens
+
+The _hashed_ username, environment, and hostname tokens provide
+a measure of privacy preservation by applying a hash function, salted
+with the organization string, to the original values. While
+this approach is not cryptographically secure, it would be
+expensive for someone to extract the original identifying data
+from a hashed token. At the same time, someone with knowledge of
+the underlying information (username, environment, hostname, and
+organizations string) can readily filter applicable logs for
+records that correspond to it.
+
 ### The configuration string
 
 A standard configuration string is simply a combination of one
-or more of the characters `c`, `s`, `e`, `u`, `h`, and `n`. To
+or more of the characters `cseuhnUHN`. To
 include an organization string, append it to this configuration
 with a leading colon `:`.
 

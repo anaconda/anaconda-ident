@@ -47,6 +47,7 @@ _client_token_formats = {
     "userhost": "cseuh",
     "hostenv": "csehn",
     "full": "cseuhn",
+    "fullhash": "cseUHN"
 }
 
 
