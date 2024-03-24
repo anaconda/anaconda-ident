@@ -23,7 +23,7 @@ requirements:
     - pip
   run:
     - python>=3.6
-    - conda>=4.11
+    - conda>=23.7
     - anaconda-anon-usage>=0.4.1,<1
 
 test:
