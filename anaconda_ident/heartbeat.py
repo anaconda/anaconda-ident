@@ -4,14 +4,14 @@ from threading import Thread
 
 from anaconda_anon_usage import utils
 from conda.base.context import context
-from conda.gateways import anaconda_client
 from conda.gateways.connection.session import CondaSession
 from conda.models.channel import Channel
 
 VERBOSE = True
 STANDALONE = True
-PRO_REPO = "https://repo.anaconda.cloud"
-DEF_REPO = "https://conda.anaconda.org"
+CLD_REPO = "https://repo.anaconda.cloud/"
+ORG_REPO = "https://conda.anaconda.org/"
+COM_REPO = "https://repo.anaconda.com/pkgs/"
 
 
 def _print(msg, *args, standalone=False, error=False):
@@ -31,7 +31,7 @@ def _print(msg, *args, standalone=False, error=False):
 def _ping(session, url, wait):
     try:
         response = session.head(url, proxies=session.proxies)
-        _print("status code (expect 404): %s", response.status_code)
+        _print("Status code (expect 404): %s", response.status_code)
     except Exception as exc:
         if type(exc).__name__ != "ConnectionError":
             _print("Heartbeat error: %s", exc, error=True)
@@ -50,31 +50,30 @@ def _attempt_heartbeat(channel=None, name=None, wait=False):
             patch.main()
         context.__init__()
 
-    base = None
-    repo_tokens = context.repo_tokens
-    if not repo_tokens:
-        repo_tokens = anaconda_client.read_binstar_tokens()
-    repo_tokens = {k.rstrip("/") for k in repo_tokens}
-    if PRO_REPO in repo_tokens:
-        base = PRO_REPO
-    elif DEF_REPO in repo_tokens:
-        base = DEF_REPO
-    elif repo_tokens:
-        base = next(iter(repo_tokens)).rstrip("/")
+    if channel and "/" in channel:
+        url = channel.rstrip() + "/noarch/activate"
     else:
-        channels = [u for c in context.channels for u in Channel(c).urls()]
-        if not channels:
+        urls = [u for c in context.channels for u in Channel(c).urls()]
+        urls.extend(u.rstrip("/") for u in context.channel_alias.urls())
+        if any(u.startswith(CLD_REPO) for u in urls):
+            base = CLD_REPO
+        elif any(u.startswith(COM_REPO) for u in urls):
+            base = COM_REPO
+        elif any(u.startswith(ORG_REPO) for u in urls):
+            base = ORG_REPO
+        else:
             _print("no valid heartbeat channel")
             _print(line, standalone=True)
             return
-        base = sorted(channels, key=lambda x: x.count("/"))[0].rsplit("/", 2)[0]
-    url = f"{base}/{channel or 'main'}/noarch/{name or 'activate'}"
+        channel = channel or "main"
+        url = f"{base}{channel}/noarch/activate"
 
-    _print("heartbeat url: %s", url)
+    _print("Heartbeat url: %s", url)
+    _print("User agent: %s", context.user_agent)
     session = CondaSession()
     t = Thread(target=_ping, args=(session, url, wait), daemon=True)
     t.start()
-    _print("%swaiting for response", "" if wait else "not ")
+    _print("%saiting for response", "W" if wait else "Not w")
     t.join(timeout=None if wait else 0.1)
 
     _print(line, standalone=True)
@@ -90,7 +89,7 @@ def attempt_heartbeat(
         STANDALONE = standalone
         _attempt_heartbeat(channel, name, wait)
     except Exception as exc:
-        _print("unexpected error in heartbeat: %s", exc, error=True)
+        _print("Unexpected error in heartbeat: %s", exc, error=True)
 
 
 def main():
