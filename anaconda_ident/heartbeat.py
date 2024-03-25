@@ -47,7 +47,7 @@ def _attempt_heartbeat(channel=None, name=None, wait=False):
         url = channel.rstrip() + "/noarch/activate"
     else:
         urls = [u for c in context.channels for u in Channel(c).urls()]
-        urls.append(context.channel_alias.rstrip("/") + "/")
+        urls.extend(u.rstrip("/") for u in context.channel_alias.urls())
         if any(u.startswith(CLD_REPO) for u in urls):
             base = CLD_REPO
         elif any(u.startswith(COM_REPO) for u in urls):
