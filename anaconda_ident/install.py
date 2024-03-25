@@ -11,7 +11,6 @@ from conda import __version__ as c_version
 
 from . import __version__
 
-PATCH_VERSION = tuple(map(int, c_version.split(".", 2)[:2])) < (23, 7)
 success = True
 
 
@@ -293,14 +292,14 @@ def _patch(args, pfile, pname):
         print(f"    new status: {status}")
 
 
-def _patch_conda_context(args, force_disable=False):
+def _patch_conda_context(args):
     pfile = join(_sp_dir(), "conda", "base", "context.py")
-    _patch(args, pfile, None if force_disable else "patch")
+    _patch(args, pfile, "patch")
 
 
-def _patch_anon_usage(args, force_disable=False):
+def _patch_anon_usage(args):
     pfile = join(_sp_dir(), "anaconda_anon_usage", "patch.py")
-    _patch(args, pfile, None if force_disable else "patch")
+    _patch(args, pfile, None)
 
 
 def _patch_anaconda_client(args):
@@ -314,15 +313,10 @@ def _patch_binstar_client(args):
 
 
 def manage_patch(args):
-    global PATCH_VERSION
     if args.verbose or args.status:
         print("patch targets:")
-    if PATCH_VERSION:
-        _patch_conda_context(args, True)
-        _patch_anon_usage(args)
-    else:
-        _patch_conda_context(args)
-        _patch_anon_usage(args, True)
+    _patch_conda_context(args)
+    _patch_anon_usage(args)
     _patch_anaconda_client(args)
     _patch_binstar_client(args)
 
@@ -573,7 +567,6 @@ def modify_binstar(args, condarc, save=True):
 
 def main():
     global success
-    global PATCH_VERSION
 
     args, p = parse_argv()
     if len(sys.argv) <= 1:
@@ -583,15 +576,6 @@ def main():
         print(__version__)
         return 0
     verbose = args.verbose or args.status
-
-    if PATCH_VERSION and not args.disable:
-        # Make sure that anaconda_anon_usage is enabled as well
-        from anaconda_anon_usage import install as aau_install
-
-        arg2 = ["--status" if args.status else "--enable"]
-        if not verbose:
-            arg2.append("--quiet")
-        aau_install.main(arg2)
 
     if verbose:
         line = "-" * 50

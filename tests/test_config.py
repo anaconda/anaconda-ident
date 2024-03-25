@@ -6,7 +6,6 @@ import sys
 from os.path import basename, join
 
 from anaconda_anon_usage import __version__ as aau_version
-from conda import __version__ as c_version
 from conda.base.context import context
 from conda.models.channel import Channel
 
@@ -316,12 +315,6 @@ for k, v in other_tokens.items():
         if token != v:
             nfailed += 1
 print("---------------------------")
-
-
-if int(c_version.split(".", 1)[0]) <= 4:
-    print("Skipping heartbeat tests for conda", c_version)
-    print("FAILURES:", nfailed)
-    sys.exit(nfailed)
 
 
 print("")
