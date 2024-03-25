@@ -113,7 +113,7 @@ jobs:
       run: |
         mv conda-bld $CONDA/
         source $CONDA/etc/profile.d/conda.sh
-        conda install constructor
+        conda install constructor conda-index
         aid_version=$(conda search local::anaconda-ident | grep ^anaconda-ident | awk '{print $2}' | tail -1)
         CONDA_PREFIX=$CONDA bash tests/test_installer.sh $TEST_REPO_TOKEN $aid_version ${{ matrix.cversion }}
     - name: Run the installer (Windows)
