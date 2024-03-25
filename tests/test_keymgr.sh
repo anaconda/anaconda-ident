@@ -9,13 +9,14 @@ trap cleanup EXIT
 
 cleanup() {
     arg1=$?
+    rm other_settings_test.yaml 2>/dev/null || :
     if [ "$mode" != "--test-only" ]; then
         mkdir -p "$CONDA_PREFIX/conda-bld" || :
-        rm -rf "$CONDA_PREFIX/conda-bld/noarch/testpkg-*" || :
+        rm -rf "$CONDA_PREFIX/conda-bld/noarch/testpkg-*" 2>/dev/null || :
         conda index "$CONDA_PREFIX/conda-bld" || :
     fi
     if [ "$mode" != "--build-only" ]; then
-        rm -rf "$CONDA_PREFIX/pkgs/testpkg-"* || :
+        rm -rf "$CONDA_PREFIX/pkgs/testpkg-"* 2>/dev/null || :
         conda remove -p "$CONDA_PREFIX" testpkg anaconda-ident \
             --force --offline --yes || :
     fi
@@ -42,6 +43,12 @@ if [ "$mode" != "--build-only" ]; then
     rm -rf "${CONDA_PREFIX}/pkgs/testpkg-"* || :
 fi
 
+# Include flipped values of these two settings in an additional
+# settings file to test that functionality
+info_orig=$(conda config --show | grep -E '^(auto_update_conda|notify_outdated_conda):')
+info_new=$(echo "$info_orig" | sed 's@True@false@;s@False@true@' | sed 's@true@True@;s@false@False@')
+echo "$info_orig" >other_settings_test.yaml
+
 compatibility=--compatibility
 grep '|' "$SCRIPTDIR"/config_tests.txt | while IFS="|" read -r cstr def cha rtk bstr; do
     echo "--------"
@@ -58,7 +65,8 @@ grep '|' "$SCRIPTDIR"/config_tests.txt | while IFS="|" read -r cstr def cha rtk 
     if [ "$mode" != "--test-only" ]; then
         output=$(python -m anaconda_ident.keymgr $compatibility \
                  --name "testpkg" --version "$ver" --build-string "$bstr" --build-number "$bnum" \
-                 --config-string "$cstr" --default-channel "$def" --channel-alias "$cha" --repo-token "$rtk")
+                 --config-string "$cstr" --default-channel "$def" --channel-alias "$cha" \
+                 --repo-token "$rtk" --other-settings other_settings_test.yaml)
         echo "$output"
         echo "--------"
         [ -f "$fname" ] || exit 1
@@ -72,6 +80,15 @@ grep '|' "$SCRIPTDIR"/config_tests.txt | while IFS="|" read -r cstr def cha rtk 
 
     conda install -p "$CONDA_PREFIX" "$pkg" \
         --override-channels -c local --freeze-installed --offline --yes
+    echo "--------"
+
+    echo "Verifying additional settings"
+    info_test=$(conda config --show | grep -E '^(auto_update_conda|notify_outdated_conda):')
+    echo "$info_test"
+    if [ "$info_test" != "$info_new" ]; then
+        echo "ERROR: additional settings were not included"
+        exit 1
+    fi
     echo "--------"
 
     # This corrupts the package cache as a way to test that the files were
