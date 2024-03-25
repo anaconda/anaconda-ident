@@ -6,21 +6,26 @@ def _aid_activate(self):
     try:
         from anaconda_anon_usage.utils import _debug
         from conda.base.context import context
+
         # We cannot assume the patch is applied here so
         # we look for the config value in raw data
         for src in context.raw_data.values():
-            val = src.get('anaconda_heartbeat')
+            val = src.get("anaconda_heartbeat")
             if not val:
                 continue
             do_it = val._raw_value
             if isinstance(do_it, str):
-                do_it = do_it.lower() in ('yes', 'true', 't', '1')
+                do_it = do_it.lower() in ("yes", "true", "t", "1")
         if not do_it:
             return
         _debug("Heartbeat enabled")
-        import os, sys
+        import os
+        import sys
+
         from conda.base.context import locate_prefix_by_name
+
         from anaconda_ident.heartbeat import attempt_heartbeat
+
         env = self.env_name_or_prefix
         if env and os.sep not in env:
             env = locate_prefix_by_name(env)
@@ -38,4 +43,3 @@ def _aid_activate(self):
 
 _Activator._old_activate = _Activator.activate
 _Activator.activate = _aid_activate
-

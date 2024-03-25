@@ -45,8 +45,10 @@ test:
     - export PYTHONUNBUFFERED=1  # [unix]
     - set ANACONDA_IDENT_DEBUG=1  # [win]
     - set PYTHONUNBUFFERED=1  # [win]
+    - anaconda-ident --expect
     - conda create -n testchild1 --yes
     - conda create -n testchild2 --yes
+    - anaconda-ident --disable
     - conda info
     - conda info --envs
     - anaconda-ident --expect

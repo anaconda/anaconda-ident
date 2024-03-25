@@ -191,7 +191,7 @@ def _eolmatch(text, ptext):
     return ptext
 
 
-def _read(args, pfile, patch_text):
+def _read(pfile, patch_text):
     if not exists(pfile):
         return None, "NOT PRESENT"
     with open(pfile, "rb") as fp:
@@ -228,20 +228,20 @@ def _strip_patch(text):
 
 def _patch(args, pfile, pname):
     global PATCH_TEXT
-    verbose = args.verbose or args.status
+    verbose = args and (args.verbose or args.status)
     tpath = relpath(pfile, _sp_dir())
     if pname:
         patch_text = PATCH_TEXT.replace(b"{version}", __version__.encode("ascii"))
         patch_text = patch_text.replace(b"{pname}", pname.encode("ascii"))
     else:
         patch_text = None
-    text, status = _read(args, pfile, patch_text)
+    text, status = _read(pfile, patch_text)
     if status == "DISABLED" and not patch_text:
         return
     if verbose:
         print(f"  {tpath}: {status}")
-    enable = (args.enable or args.verify or args.expect) and patch_text
-    disable = args.disable or args.clean or not patch_text
+    enable = (not args or args.enable or args.verify or args.expect) and patch_text
+    disable = args and (args.disable or args.clean or not patch_text)
     if status == "NEEDS UPDATE":
         need_change = True
         status = "reverting" if disable else "updating"
@@ -255,7 +255,7 @@ def _patch(args, pfile, pname):
         need_change = False
     if not need_change:
         return
-    if args.expect and need_change:
+    if args and args.expect and need_change:
         error("not properly enabled", fatal=True)
     if verbose:
         print(f"    {status} patch...", end="")
@@ -285,7 +285,7 @@ def _patch(args, pfile, pname):
         print(f"{what}: {exc}")
         if renamed:
             os.rename(pfile_orig, pfile)
-    text, status = _read(args, pfile, patch_text)
+    text, status = _read(pfile, patch_text)
     if verbose:
         print(f"    new status: {status}")
 

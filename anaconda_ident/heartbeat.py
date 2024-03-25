@@ -45,6 +45,7 @@ def _attempt_heartbeat(channel=None, name=None, wait=False):
 
     if not hasattr(context, "_aid_initialized"):
         from anaconda_ident import patch
+
         patch.main()
 
     if channel and "/" in channel:

@@ -2,14 +2,13 @@ import base64
 import getpass
 import platform
 import sys
-from os import environ, sep
-from os.path import abspath, basename, exists, expanduser, expandvars, join
-
-from .tokens import include_baked_tokens
+from os import environ
+from os.path import basename, exists, join
 
 from anaconda_anon_usage import tokens
 from anaconda_anon_usage import utils as aau_utils
 from anaconda_anon_usage.utils import _debug, cached
+from conda.activate import _Activator
 from conda.auxlib.decorators import memoizedproperty
 from conda.base import context as c_context
 from conda.base.context import (
@@ -19,12 +18,11 @@ from conda.base.context import (
     PrimitiveParameter,
     context,
     env_name,
-    locate_prefix_by_name,
 )
 from conda.gateways import anaconda_client as ac
 
 from . import __version__
-from .tokens import hash_string
+from .tokens import hash_string, include_baked_tokens
 
 BAKED_CONDARC = join(sys.prefix, "etc", "anaconda_ident.yml")
 
@@ -174,6 +172,7 @@ def main():
 
     if getattr(context, "_aau_initialized", None) is None:
         from anaconda_anon_usage import patch
+
         patch.main(plugin=True)
 
     # conda.base.context.SEARCH_PATH
@@ -209,12 +208,22 @@ def main():
     # conda.base.context.Context.user_agent
     # Adds the ident token to the user agent string
     _debug("Replacing anaconda_anon_usage user agent in module")
-    assert hasattr(Context, '_old_user_agent')
+    assert hasattr(Context, "_old_user_agent")
     Context.user_agent = memoizedproperty(_aid_user_agent)
 
     _debug("Replacing read_binstar_tokens")
     ac._old_read_binstar_tokens = ac.read_binstar_tokens
     ac.read_binstar_tokens = _aid_read_binstar_tokens
 
-    return True
+    if hasattr(_Activator, "_old_activate"):
+        _debug("Verified heartbeat patch")
+    else:
+        _debug("Applying heartbeat patch")
+        try:
+            from anaconda_ident import install
 
+            install._patch_heartbeat(None)
+        except Exception as exc:
+            _debug("Error installing heartbeat: %s", exc)
+
+    return True
