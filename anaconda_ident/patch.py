@@ -1,3 +1,4 @@
+import base64
 import getpass
 import platform
 import sys
@@ -101,8 +102,8 @@ def client_token_type():
     token_type = context.anaconda_ident
     if DEBUG:
         token_disp = token_type
-        if token_disp.count(':') > 1:
-            token_disp = token_disp.rsplit(':', 1)[0] + ':<pepper>'
+        if token_disp.count(":") > 1:
+            token_disp = token_disp.rsplit(":", 1)[0] + ":<pepper>"
         _debug("Token config from context: %s", token_disp)
     org = pepper = None
     if ":" in token_type:
@@ -112,7 +113,7 @@ def client_token_type():
             try:
                 npad = len(pepper) % 3
                 npad = 3 - npad if npad else 0
-                pepper = base64.b64decode(pepper + '=' * npad)
+                pepper = base64.b64decode(pepper + "=" * npad)
             except Exception:
                 pass
     fmt = _client_token_formats.get(token_type, token_type)

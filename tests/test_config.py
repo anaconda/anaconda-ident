@@ -60,9 +60,9 @@ if p.returncode != 0:
 success = True
 config_env = os.environ.get("CONFIG_STRING") or ""
 config_baked = context.anaconda_ident
-if config_baked.count(':') == 2:
-    config_baked = config_baked.rsplit(':', 1)[0]
-config_baked = config_baked.rstrip(':')
+if config_baked.count(":") == 2:
+    config_baked = config_baked.rsplit(":", 1)[0]
+config_baked = config_baked.rstrip(":")
 if config_env:
     if config_baked != config_env:
         print(

@@ -106,7 +106,7 @@ def parse_argv():
         action="store_true",
         help="If supplied, a random 16-byte pepper value is computed, base64 "
         "encoded, and appended to the config-string. If a pepper value was "
-        "already included in the config string, an error will be raised."
+        "already included in the config string, an error will be raised.",
     )
     p.add_argument(
         "--other-settings",
@@ -130,10 +130,10 @@ def parse_argv():
         print("No arguments supplied... exiting.")
         sys.exit(-1)
     args = p.parse_args()
-    if args.pepper and args.config_string.count(':') >= 2:
-        parts = args.config_string.split(':', 2)
+    if args.pepper and args.config_string.count(":") >= 2:
+        parts = args.config_string.split(":", 2)
         if parts[2]:
-            raise argparse.ArgumentError('Conflicting pepper values supplied')
+            raise argparse.ArgumentError("Conflicting pepper values supplied")
     return args, p
 
 
@@ -268,9 +268,9 @@ def build_config_dict(args):
     cstr = args.config_string
     if args.pepper:
         pepper = os.urandom(16)
-        pepper = base64.b64encode(pepper).rstrip(b'=')
-        pepper = pepper.decode('ascii')
-        cstr = cstr + ':' * (2 - cstr.count(':')) + pepper
+        pepper = base64.b64encode(pepper).rstrip(b"=")
+        pepper = pepper.decode("ascii")
+        cstr = cstr + ":" * (2 - cstr.count(":")) + pepper
     result["anaconda_ident"] = cstr
     if verbose:
         print("anaconda_ident:", result["anaconda_ident"])

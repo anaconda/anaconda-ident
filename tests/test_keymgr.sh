@@ -8,8 +8,8 @@ mode=${1:-}
 trap cleanup EXIT
 
 cleanup() {
+    local arg1=$?
     echo "--------"
-    arg1=$?
     rm other_settings_test.yaml 2>/dev/null || :
     if [ "$mode" != "--test-only" ]; then
         mkdir -p "$CONDA_PREFIX/conda-bld" || :
@@ -89,11 +89,11 @@ grep '|' "$SCRIPTDIR"/config_tests.txt | while IFS="|" read -r cstr def cha rtk 
     else
         ftest=$CONDA_PREFIX/condarc.d/anaconda_ident.yml
     fi
-    if [ ! -f $ftest ]; then
+    if [ ! -f "$ftest" ]; then
         echo "ERROR: file not found: $ftest"
         exit 1
     fi
-    cat $ftest
+    cat "$ftest"
     echo "--------"
 
     all_config=$(conda config --show)
@@ -111,6 +111,7 @@ grep '|' "$SCRIPTDIR"/config_tests.txt | while IFS="|" read -r cstr def cha rtk 
     info_test=$(echo "$all_config" | grep -E '^(auto_update_conda|notify_outdated_conda):')
     echo "$info_test"
     if [ "$info_test" != "$info_new" ]; then
+        # shellcheck disable=SC2001
         echo "$info_new" | sed 's@^@EXPECTED: @'
         echo "ERROR: additional settings were not included"
         exit 1
