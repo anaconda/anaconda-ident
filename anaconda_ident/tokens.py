@@ -37,17 +37,17 @@ def include_baked_tokens(tdict):
                 tdict[k + "repo/"] = v
 
 
-def hash_string(what, s, salt=None):
+def hash_string(what, s, pepper=None):
     from base64 import urlsafe_b64encode
     from hashlib import blake2b
 
     from anaconda_anon_usage.utils import _debug
 
-    if isinstance(salt, str):
-        salt = salt.encode("utf-8")
+    if isinstance(pepper, str):
+        pepper = pepper.encode("utf-8")
     person = what.encode("utf-8")
-    salt = (salt or b"")[: blake2b.SALT_SIZE]
-    hfunc = blake2b(s.encode("utf-8"), digest_size=16, person=person, salt=salt)
+    pepper = (pepper or b"")[: blake2b.SALT_SIZE]
+    hfunc = blake2b(s.encode("utf-8"), digest_size=16, person=person, salt=pepper)
     data = hfunc.digest()
     result = urlsafe_b64encode(data).strip(b"=").decode("ascii")
     _debug("Hashed %s token: %s", what, result)

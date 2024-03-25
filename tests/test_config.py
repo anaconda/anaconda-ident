@@ -48,15 +48,21 @@ print("-----")
 p = subprocess.run(
     ["python", "-m", "conda", "info"],
     capture_output=True,
-    check=True,
+    check=False,
     stdin=subprocess.DEVNULL,
 )
 print(p.stdout.decode("utf-8").strip())
+print(p.stderr.decode("utf-8").strip())
+if p.returncode != 0:
+    sys.exit(-1)
 
 # Verify baked configurations, if any
 success = True
 config_env = os.environ.get("CONFIG_STRING") or ""
 config_baked = context.anaconda_ident
+if config_baked.count(':') == 2:
+    config_baked = config_baked.rsplit(':', 1)[0]
+config_baked = config_baked.rstrip(':')
 if config_env:
     if config_baked != config_env:
         print(

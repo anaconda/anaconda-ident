@@ -1,4 +1,5 @@
 import argparse
+import base64
 import hashlib
 import io
 import json
@@ -23,7 +24,7 @@ def parse_argv():
     p = argparse.ArgumentParser()
     p.add_argument(
         "--config-string",
-        default=None,
+        default="default",
         help="Set the telemetry configuration. Defaults to 'default'.",
     )
     p.add_argument(
@@ -101,6 +102,13 @@ def parse_argv():
         "uninterrupted service.",
     )
     p.add_argument(
+        "--pepper",
+        action="store_true",
+        help="If supplied, a random 16-byte pepper value is computed, base64 "
+        "encoded, and appended to the config-string. If a pepper value was "
+        "already included in the config string, an error will be raised."
+    )
+    p.add_argument(
         "--other-settings",
         default=None,
         help="If supplied, it is assumed to be a filename of additional conda "
@@ -122,6 +130,10 @@ def parse_argv():
         print("No arguments supplied... exiting.")
         sys.exit(-1)
     args = p.parse_args()
+    if args.pepper and args.config_string.count(':') >= 2:
+        parts = args.config_string.split(':', 2)
+        if parts[2]:
+            raise argparse.ArgumentError('Conflicting pepper values supplied')
     return args, p
 
 
@@ -253,7 +265,13 @@ def build_config_dict(args):
         print("Building config dictionary")
         print(LINE)
     result = {}
-    result["anaconda_ident"] = args.config_string or "default"
+    cstr = args.config_string
+    if args.pepper:
+        pepper = os.urandom(16)
+        pepper = base64.b64encode(pepper).rstrip(b'=')
+        pepper = pepper.decode('ascii')
+        cstr = cstr + ':' * (2 - cstr.count(':')) + pepper
+    result["anaconda_ident"] = cstr
     if verbose:
         print("anaconda_ident:", result["anaconda_ident"])
     if args.heartbeat:

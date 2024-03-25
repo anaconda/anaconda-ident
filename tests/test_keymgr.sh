@@ -3,11 +3,12 @@
 set -o errtrace -o nounset -o pipefail -o errexit
 
 SCRIPTDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-mode=${1:-}; shift
+mode=${1:-}
 
 trap cleanup EXIT
 
 cleanup() {
+    echo "--------"
     arg1=$?
     rm other_settings_test.yaml 2>/dev/null || :
     if [ "$mode" != "--test-only" ]; then
@@ -47,7 +48,7 @@ fi
 # settings file to test that functionality
 info_orig=$(conda config --show | grep -E '^(auto_update_conda|notify_outdated_conda):')
 info_new=$(echo "$info_orig" | sed 's@True@false@;s@False@true@' | sed 's@true@True@;s@false@False@')
-echo "$info_orig" >other_settings_test.yaml
+echo "$info_new" >other_settings_test.yaml
 
 compatibility=--compatibility
 grep '|' "$SCRIPTDIR"/config_tests.txt | while IFS="|" read -r cstr def cha rtk bstr; do
@@ -66,7 +67,7 @@ grep '|' "$SCRIPTDIR"/config_tests.txt | while IFS="|" read -r cstr def cha rtk 
         output=$(python -m anaconda_ident.keymgr $compatibility \
                  --name "testpkg" --version "$ver" --build-string "$bstr" --build-number "$bnum" \
                  --config-string "$cstr" --default-channel "$def" --channel-alias "$cha" \
-                 --repo-token "$rtk" --other-settings other_settings_test.yaml)
+                 --repo-token "$rtk" --other-settings other_settings_test.yaml --pepper)
         echo "$output"
         echo "--------"
         [ -f "$fname" ] || exit 1
@@ -82,10 +83,35 @@ grep '|' "$SCRIPTDIR"/config_tests.txt | while IFS="|" read -r cstr def cha rtk 
         --override-channels -c local --freeze-installed --offline --yes
     echo "--------"
 
+    echo "Verifying contents"
+    if [ "$compatibility" = "--legacy-only" ]; then
+        ftest=$CONDA_PREFIX/etc/anaconda_ident.yml
+    else
+        ftest=$CONDA_PREFIX/condarc.d/anaconda_ident.yml
+    fi
+    if [ ! -f $ftest ]; then
+        echo "ERROR: file not found: $ftest"
+        exit 1
+    fi
+    cat $ftest
+    echo "--------"
+
+    all_config=$(conda config --show)
+    echo "Verifying config string"
+    cstr_cfg=$(echo "$all_config" | grep -E '^anaconda_ident:')
+    echo "$cstr_cfg"
+    if [[ "$cstr_cfg" != "anaconda_ident: ${cstr}:"* ]]; then
+        echo "EXPECTED: anaconda_ident: ${cstr}:..."
+        echo "ERROR: config string not set properly"
+        exit 1
+    fi
+    echo "--------"
+
     echo "Verifying additional settings"
-    info_test=$(conda config --show | grep -E '^(auto_update_conda|notify_outdated_conda):')
+    info_test=$(echo "$all_config" | grep -E '^(auto_update_conda|notify_outdated_conda):')
     echo "$info_test"
     if [ "$info_test" != "$info_new" ]; then
+        echo "$info_new" | sed 's@^@EXPECTED: @'
         echo "ERROR: additional settings were not included"
         exit 1
     fi

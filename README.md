@@ -244,30 +244,41 @@ it according to the settings provided.
 ### Advanced: hashed identifier tokens
 
 The _hashed_ username, environment, and hostname tokens provide
-a measure of privacy preservation by applying a hash function, salted
-with the organization string, to the original values. While
-this approach is not cryptographically secure, it would be
-expensive for someone to extract the original identifying data
-from a hashed token. At the same time, someone with knowledge of
-the underlying information (username, environment, hostname, and
-organizations string) can readily filter applicable logs for
-records that correspond to it.
+a measure of privacy preservation by applying a hash function
+to the original values. While this approach is not cryptographically
+secure, it is considered impractical for someone to extract the
+original identifying data from a hashed token. At the same time,
+someone with access to the configuration data can readily compute
+these hashes and use them to, for example, filter logs for
+records that match particular hosts, users, or environments.
+
+The security of this approach can be improved by supplying a
+[pepper](https://en.wikipedia.org/wiki/Pepper_(cryptography))
+value in the config string. This data is 16 bytes of random
+data, and can be base64-encoded and appended to the end of
+the config string following a second colon; for instance:
+
+anaconda_ident: userhost:my_org:ugQzhEX5Fs45/iOonikPXA
+
+For simplicy, a `--pepper` option has been added to the
+`anaconda-keymgr` command to randomly generate a pepper value.
+To reuse an existing pepper value, simply supply it as part
+of the `--config-string` argument.
 
 A command-line utility `anaconda-ident-hash` has been provided
 to enable the hash values to be computed for filtering uses:
 
 ```
-anaconda-ident-hash <environment|username|hostname> <value> <organization>
+anaconda-ident-hash <environment|username|hostname> <value>
 ```
-The `organization` value must exactly match the organization
-string supplied to the `anaconda_ident` configuration. For
-example,
+To obtain the results that match logs, this would need to be
+run in a conda environment with a matching organization
+string and pepper value.
 
 ```
-anaconda-ident-hash hostname mgrant-mbp anaconda
+anaconda-ident-hash hostname mgrant-mbp
 ```
-returns `y4IMbsbNCLeEKqSjweHQkg`, the token generated for the
-hostname `mgrant-mbp` for organization `anaconda`.
+would return the token generated for the hostname `mgrant-mbp`.
 
 ## Distributing `anaconda-ident`
 
