@@ -43,6 +43,13 @@ def _attempt_heartbeat(channel=None, name=None, wait=False):
     _print("anaconda-ident heartbeat", standalone=True)
     _print(line, standalone=True)
 
+    if not getattr(context, "_aau_initialized", False):
+        if not hasattr(context, "_aau_initialized"):
+            from anaconda_anon_usage import patch
+
+            patch.main()
+        context.__init__()
+
     if channel and "/" in channel:
         url = channel.rstrip() + "/noarch/activate"
     else:
@@ -62,6 +69,7 @@ def _attempt_heartbeat(channel=None, name=None, wait=False):
         url = f"{base}{channel}/noarch/activate"
 
     _print("Heartbeat url: %s", url)
+    _print("User agent: %s", context.user_agent)
     session = CondaSession()
     t = Thread(target=_ping, args=(session, url, wait), daemon=True)
     t.start()
