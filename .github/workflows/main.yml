@@ -88,6 +88,7 @@ jobs:
         conda create -n testchild1 --yes
         conda create -n testchild2 --yes
         python tests/test_config.py
+        python tests/test_heartbeats.py
   installer_tests:
     needs: build
     defaults:

@@ -203,20 +203,17 @@ def main():
     assert hasattr(Context, "_old_user_agent")
     Context.user_agent = memoizedproperty(_aid_user_agent)
 
-    _debug("Replacing read_binstar_tokens")
-    ac._old_read_binstar_tokens = ac.read_binstar_tokens
-    ac.read_binstar_tokens = cs.read_binstar_tokens = _aid_read_binstar_tokens
-
     if hasattr(_Activator, "_old_activate"):
         _debug("Verified heartbeat patch")
     else:
-        _debug("Applying heartbeat patch")
-        try:
-            from anaconda_ident import install
+        _debug("Heartbeat patch not applied")
 
-            install._patch_heartbeat(None)
-        except Exception as exc:
-            _debug("Error installing heartbeat: %s", exc)
+    if hasattr(ac, "_old_read_binstar_tokens"):
+        _debug("Verified binstar patch")
+    else:
+        _debug("Binstar patch not applied")
+        ac._old_read_binstar_tokens = ac.read_binstar_tokens
+        ac.read_binstar_tokens = cs.read_binstar_tokens = _aid_read_binstar_tokens
 
     context._aid_initialized = True
 

@@ -15,7 +15,7 @@ function finish() {
 
 echo "Environment tester"
 echo "------------------------"
-T_PREFIX=${1:-$CONDA_PREFIX}
+T_PREFIX=$1; shift
 T_PREFIX=$(cd "$T_PREFIX" && pwd)
 echo "prefix ... $T_PREFIX"
 

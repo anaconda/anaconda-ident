@@ -306,7 +306,7 @@ def _patch_anon_usage(args):
 
 def _patch_anaconda_client(args):
     acfile = join(_sp_dir(), "conda", "gateways", "anaconda_client.py")
-    _patch(args, acfile, None)
+    _patch(args, acfile, "patch_ac")
 
 
 def _patch_binstar_client(args):
@@ -325,8 +325,8 @@ def manage_patch(args):
     if not args.verify:
         _patch_conda_context(args)
         _patch_anon_usage(args)
-        _patch_anaconda_client(args)
         _patch_binstar_client(args)
+    _patch_anaconda_client(args)
     _patch_heartbeat(args)
 
 
