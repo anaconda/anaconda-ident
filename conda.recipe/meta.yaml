@@ -55,6 +55,9 @@ test:
     - anaconda-keymgr --help
     - anaconda-ident-hash --help
     - python tests/test_config.py
+    - export ANACONDA_IDENT=full:testorg  # [unix]
+    - set ANACONDA_IDENT=full:testorg # [win]
+    - python tests/test_heartbeats.py
 
 about:
   home: https://github.com/Anaconda-Platform/anaconda-ident

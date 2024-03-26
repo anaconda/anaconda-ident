@@ -60,7 +60,7 @@ def _attempt_heartbeat(channel=None, name=None, wait=False):
         elif any(u.startswith(ORG_REPO) for u in urls):
             base = ORG_REPO
         else:
-            _print("no valid heartbeat channel")
+            _print("No valid heartbeat channel")
             _print(line, standalone=True)
             return
         channel = channel or "main"

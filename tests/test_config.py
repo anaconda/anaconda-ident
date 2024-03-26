@@ -1,16 +1,13 @@
-import json
 import os
-import re
 import subprocess
 import sys
-from os.path import basename, join
+from os.path import join
 
-from anaconda_anon_usage import __version__ as aau_version
 from conda.base.context import context
 from conda.models.channel import Channel
+from test_utils import get_test_envs, other_tokens, verify_user_agent
 
-from anaconda_ident import __version__ as aid_version
-from anaconda_ident import patch as patch
+from anaconda_ident import patch
 
 patch.main()
 context.__init__()
@@ -19,22 +16,6 @@ context.__init__()
 # test code used a fake channel to accomplish this, but the
 # fetch behavior of conda changed to frustrate that approach.
 os.environ["CONDA_LOCAL_REPODATA_TTL"] = "0"
-
-
-def get_config_value(key, subkey=None):
-    """
-    Why not just do getattr(context, key)? Well, we actually want
-    to know *where* the config value is set
-    """
-    result = getattr(context, key)
-    if subkey is not None:
-        result = getattr(result, subkey)
-    for loc, rdict in context.raw_data.items():
-        if key in rdict:
-            break
-    else:
-        loc = None
-    return result, loc
 
 
 print("Environment variables:")
@@ -152,7 +133,6 @@ test_patterns = (
     ("o:org4", "o"),
     ("o", ""),
 )
-all_fields = {"aau", "aid", "c", "s", "e", "u", "h", "n", "o", "U", "H", "N"}
 
 test_org = None
 if config_env:
@@ -163,17 +143,8 @@ if config_env:
     test_patterns = [(config_baked, fmt)]
     print("test_patterns:", test_patterns)
 
-proc = subprocess.run(
-    ["conda", "info", "--envs", "--json"],
-    check=False,
-    capture_output=True,
-    text=True,
-)
-pfx_s = join(sys.prefix, "envs") + os.sep
-pdata = json.loads(proc.stdout)
-# Limit ourselves to two non-base environments to speed up local testing
-envs = [sys.prefix] + [e for e in pdata["envs"] if e.startswith(pfx_s)][:2]
-envs = {("base" if e == sys.prefix else basename(e)): e for e in envs}
+envs = get_test_envs()
+maxlen = max(len(e) for e in envs)
 tp_0 = test_patterns[0]
 test_patterns = [t + ("",) for t in test_patterns]
 for env in envs:
@@ -181,62 +152,8 @@ for env in envs:
     # we get the same token each time
     test_patterns.append(tp_0 + (env,))
     test_patterns.append(tp_0 + (env,))
-maxlen = max(len(e) for e in envs)
 
 nfailed = 0
-other_tokens = {"aau": aau_version, "aid": aid_version}
-all_session_tokens = set()
-all_environments = set()
-
-
-def _verify_user_agent(output, expected, marker=None):
-    # Unfortunately conda has evolved how it logs request headers
-    # So this regular expression attempts to match multiple forms
-    # > User-Agent: conda/...
-    # .... {'User-Agent': 'conda/...', ...}
-    user_agent = ""
-    marker = marker or "User-Agent"
-    MATCH_RE = r".*" + marker + r'(["\']?): *(["\']?)(.+)'
-    for v in output.splitlines():
-        match = re.match(MATCH_RE, v)
-        if match:
-            _, delim, user_agent = match.groups()
-            if delim and delim in user_agent:
-                user_agent = user_agent.split(delim, 1)[0]
-            break
-
-    new_values = [t.split("/", 1) for t in user_agent.split(" ") if "/" in t]
-    new_values = {k: v for k, v in new_values if k in all_fields}
-    header = " ".join(f"{k}/{v}" for k, v in new_values.items())
-
-    # Confirm that all of the expected tokens are present
-    status = []
-    missing = set(expected) - set(new_values)
-    extras = set(new_values) - set(expected)
-    if missing:
-        status.append(f"{','.join(missing)} MISSING")
-    if extras:
-        status.append(f"{','.join(extras)} EXTRA")
-    modified = []
-    duplicated = []
-    for k, v in new_values.items():
-        if k == "s":
-            if new_values["s"] in all_session_tokens:
-                status.append("SESSION")
-            all_session_tokens.add(new_values["s"])
-            continue
-        if k == "e":
-            k = "e/" + (envname or "base")
-            if k not in other_tokens and v in all_environments:
-                duplicated.append("e")
-            all_environments.add(v)
-        if other_tokens.setdefault(k, v) != v:
-            modified.append(k)
-    if duplicated:
-        status.append(f"DUPLICATED: {','.join(duplicated)}")
-    if modified:
-        status.append(f"MODIFIED: {','.join(modified)}")
-    return ", ".join(status), header
 
 
 id_last = False
@@ -246,7 +163,6 @@ for aau_state in (True, False):
     anon_flag = "T" if aau_state else "F"
     for param, test_fields, envname in test_patterns:
         other_tokens["o"] = param.split(":", 1)[-1] if ":" in param else ""
-        other_tokens["n"] = envname if envname else "base"
         os.environ["CONDA_ANACONDA_IDENT"] = param
         test_fields = "cse" + test_fields
         test_fields = "".join(dict.fromkeys(test_fields))
@@ -272,7 +188,7 @@ for aau_state in (True, False):
             capture_output=True,
             text=True,
         )
-        status, header = _verify_user_agent(proc.stderr, expected)
+        status, header = verify_user_agent(proc.stderr, expected, envname)
         if need_header:
             need_header = False
             print("|", header)
@@ -305,57 +221,5 @@ for k, v in other_tokens.items():
         if token != v:
             nfailed += 1
 print("---------------------------")
-
-
-print("")
-print("Testing activation")
-print("------------------")
-expected = list(dict.fromkeys("cse" + tp_0[1]))
-expected.extend(("aid", "aau"))
-need_header = True
-os.environ["CONDA_ANACONDA_IDENT"] = tp_0[0]
-os.environ["ANACONDA_IDENT_DEBUG"] = "1"
-if token_env:
-    url_string = "heartbeat url: " + next(iter(token_env)).rstrip("/") + "/"
-for hval in ("true", "false"):
-    os.environ["CONDA_ANACONDA_HEARTBEAT"] = hval
-    for envname in envs:
-        other_tokens["n"] = envname
-        for stype in ("posix", "cmd.exe", "powershell"):
-            cmd = ["conda", "shell." + stype, "activate", envname]
-            proc = subprocess.run(
-                cmd,
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            header = status = ""
-            if hval == "true":
-                if "Heartbeat attempted" not in proc.stderr:
-                    status = "NO HEARTBEAT"
-                else:
-                    status, header = _verify_user_agent(
-                        proc.stderr, expected, "Full client token"
-                    )
-                    if token_env and url_string not in proc.stderr:
-                        if status:
-                            status += ", "
-                        status += "WRONG URL"
-            elif "Heartbeat attempted" in proc.stderr:
-                status = "HEARTBEAT NOT DISABLED"
-            if need_header:
-                print(f"hval  shell     {'envname':{maxlen}} status")
-                print(f"----- ---------- {'-' * maxlen} ----------")
-                need_header = False
-            print(f"{hval:5} {stype:10} {envname:{maxlen}} {status or 'OK'}")
-            if status:
-                print("|", " ".join(cmd))
-                for line in proc.stderr.splitlines():
-                    if line.strip():
-                        print("!", line)
-                if header:
-                    print("|", header)
-                nfailed += 1
-
 print("FAILURES:", nfailed)
 sys.exit(nfailed)

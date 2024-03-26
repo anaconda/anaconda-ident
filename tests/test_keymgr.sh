@@ -5,24 +5,32 @@ set -o errtrace -o nounset -o pipefail -o errexit
 SCRIPTDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 mode=${1:-}
 
-trap cleanup EXIT
+# For local tests we need to avoid installing anaconda-ident
+if conda list anaconda-ident 2>/dev/null | grep -q ^anaconda-ident; then
+    echo "Local tests detected; force install enabled"
+    remove_pkgs="testpkg"
+    use_blob=yes
+else
+    remove_pkgs="testpkg anaconda-ident"
+    use_blob=no
+fi
 
 cleanup() {
     local arg1=$?
     echo "--------"
     rm other_settings_test.yaml 2>/dev/null || :
     if [ "$mode" != "--test-only" ]; then
-        mkdir -p "$CONDA_PREFIX/conda-bld" || :
         rm -rf "$CONDA_PREFIX/conda-bld/noarch/testpkg-*" 2>/dev/null || :
         conda index "$CONDA_PREFIX/conda-bld" || :
     fi
     if [ "$mode" != "--build-only" ]; then
         rm -rf "$CONDA_PREFIX/pkgs/testpkg-"* 2>/dev/null || :
-        conda remove -p "$CONDA_PREFIX" testpkg anaconda-ident \
-            --force --offline --yes || :
+        conda remove -p "$CONDA_PREFIX" "$remove_pkgs" --offline --yes 2>/dev/null || :
     fi
     exit "$arg1"
 }
+
+trap cleanup EXIT
 
 # shellcheck disable=SC1091
 source "$CONDA_PREFIX/etc/profile.d/conda.sh"
@@ -61,6 +69,7 @@ grep '|' "$SCRIPTDIR"/config_tests.txt | while IFS="|" read -r cstr def cha rtk 
     echo "build number: $bnum"
     echo "--------"
     fname=testpkg-$ver-${bstr}_$bnum.tar.bz2
+    fpath="$CONDA_PREFIX/conda-bld/noarch/$fname"
     pkg=testpkg=$ver=${bstr}_$bnum
 
     if [ "$mode" != "--test-only" ]; then
@@ -71,7 +80,7 @@ grep '|' "$SCRIPTDIR"/config_tests.txt | while IFS="|" read -r cstr def cha rtk 
         echo "$output"
         echo "--------"
         [ -f "$fname" ] || exit 1
-        mv "$fname" "$CONDA_PREFIX/conda-bld/noarch/"
+        mv "$fname" "$fpath"
         conda index "$CONDA_PREFIX/conda-bld"
     fi
 
@@ -79,7 +88,8 @@ grep '|' "$SCRIPTDIR"/config_tests.txt | while IFS="|" read -r cstr def cha rtk 
         continue
     fi
 
-    conda install -p "$CONDA_PREFIX" "$pkg" \
+    if [ "$use_blob" = yes ]; then ipkg=$fpath; else ipkg=$pkg; fi
+    conda install -p "$CONDA_PREFIX" "$ipkg" \
         --override-channels -c local --freeze-installed --offline --yes
     echo "--------"
 
@@ -151,4 +161,5 @@ grep '|' "$SCRIPTDIR"/config_tests.txt | while IFS="|" read -r cstr def cha rtk 
     CONFIG_STRING="$cstr" DEFAULT_CHANNELS="$def" \
         CHANNEL_ALIAS="$cha" REPO_TOKEN="$rtk" \
         ANACONDA_IDENT_DEBUG=1 SKIP_INSTALL=1 python "$SCRIPTDIR"/test_config.py
+    python "$SCRIPTDIR"/test_heartbeats.py
 done
