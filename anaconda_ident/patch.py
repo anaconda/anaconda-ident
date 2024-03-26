@@ -1,3 +1,4 @@
+import base64
 import getpass
 import platform
 import sys
@@ -21,6 +22,7 @@ from conda.base.context import (
 )
 
 from . import __version__
+from .tokens import hash_string
 
 BAKED_CONDARC = join(sys.prefix, "etc", "anaconda_ident.yml")
 
@@ -45,6 +47,7 @@ _client_token_formats = {
     "userhost": "cseuh",
     "hostenv": "csehn",
     "full": "cseuhn",
+    "fullhash": "cseUHN",
 }
 
 
@@ -66,32 +69,53 @@ def get_environment_prefix():
     )
 
 
-def get_environment_name(prefix=None):
+def get_environment_name(prefix=None, hash=False, pepper=None):
     prefix = prefix or get_environment_prefix()
-    return basename(env_name(prefix)) if prefix else None
+    if not prefix:
+        return None
+    value = basename(env_name(prefix))
+    if hash:
+        value = hash_string("environment", value, pepper)
+    return value
 
 
-def get_username():
+def get_username(hash=False, pepper=None):
     try:
-        return getpass.getuser()
+        result = getpass.getuser()
+        if hash:
+            result = hash_string("username", result, pepper)
+        return result
     except Exception as exc:
         _debug("getpass.getuser raised an exception: %s" % exc)
 
 
-def get_hostname():
+def get_hostname(hash=False, pepper=None):
     value = platform.node()
     if not value:
         _debug("platform.node returned an empty value")
+    if hash:
+        value = hash_string("hostname", value, pepper)
     return value
 
 
 def client_token_type():
     token_type = context.anaconda_ident
-    _debug("Token config from context: %s", token_type)
+    if DEBUG:
+        token_disp = token_type
+        if token_disp.count(":") > 1:
+            token_disp = token_disp.rsplit(":", 1)[0] + ":<pepper>"
+        _debug("Token config from context: %s", token_disp)
+    org = pepper = None
     if ":" in token_type:
         token_type, org = token_type.split(":", 1)
-    else:
-        org = ""
+        if ":" in org:
+            org, pepper = org.split(":", 1)
+            try:
+                npad = len(pepper) % 3
+                npad = 3 - npad if npad else 0
+                pepper = base64.b64decode(pepper + "=" * npad)
+            except Exception:
+                pass
     fmt = _client_token_formats.get(token_type, token_type)
     _debug("Preliminary usage tokens: %s", fmt)
     if org and "o" not in fmt:
@@ -100,15 +124,15 @@ def client_token_type():
     elif not org and "o" in fmt:
         _debug("Expected an organization string; none provided.")
         fmt = fmt.replace("o", "")
-    fmt = "cse" + "".join(dict.fromkeys(c for c in fmt if c in "uhon"))
+    fmt = "cse" + "".join(dict.fromkeys(c for c in fmt if c in "uhonUHN"))
     _debug("Final token config: %s %s", fmt, org)
-    return fmt, org
+    return fmt, org, pepper
 
 
 @cached
 def client_token_string():
     parts = ["aau/" + tokens.version_token(), "aid/" + __version__]
-    fmt, org = client_token_type()
+    fmt, org, pepper = client_token_type()
     pfx = get_environment_prefix()
     _debug("Environmment: %s", pfx)
     for code in fmt:
@@ -119,14 +143,14 @@ def client_token_string():
             value = tokens.session_token()
         elif code == "e":
             value = tokens.environment_token(pfx)
-        elif code == "u":
-            value = get_username()
-        elif code == "h":
-            value = get_hostname()
+        elif code in "uU":
+            value = get_username(hash=code == "U", pepper=pepper)
+        elif code in "hH":
+            value = get_hostname(hash=code == "H", pepper=pepper)
         elif code == "o":
             value = org
-        elif code == "n":
-            value = get_environment_name(pfx)
+        elif code in "nN":
+            value = get_environment_name(pfx, hash=code == "N", pepper=pepper)
         else:
             _debug("Unexpected client token code: %s", code)
             value = None
