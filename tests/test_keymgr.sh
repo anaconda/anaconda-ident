@@ -58,7 +58,6 @@ info_orig=$(conda config --show | grep -E '^(auto_update_conda|notify_outdated_c
 info_new=$(echo "$info_orig" | sed 's@True@false@;s@False@true@' | sed 's@true@True@;s@false@False@')
 echo "$info_new" >other_settings_test.yaml
 
-compatibility=--compatibility
 grep '|' "$SCRIPTDIR"/config_tests.txt | while IFS="|" read -r cstr def cha rtk bstr; do
     echo "--------"
     echo "config string: $cstr"
@@ -73,7 +72,7 @@ grep '|' "$SCRIPTDIR"/config_tests.txt | while IFS="|" read -r cstr def cha rtk 
     pkg=testpkg=$ver=${bstr}_$bnum
 
     if [ "$mode" != "--test-only" ]; then
-        output=$(python -m anaconda_ident.keymgr $compatibility \
+        output=$(python -m anaconda_ident.keymgr \
                  --name "testpkg" --version "$ver" --build-string "$bstr" --build-number "$bnum" \
                  --config-string "$cstr" --default-channel "$def" --channel-alias "$cha" \
                  --repo-token "$rtk" --other-settings other_settings_test.yaml --pepper)
@@ -94,11 +93,7 @@ grep '|' "$SCRIPTDIR"/config_tests.txt | while IFS="|" read -r cstr def cha rtk 
     echo "--------"
 
     echo "Verifying contents"
-    if [ "$compatibility" = "--legacy-only" ]; then
-        ftest=$CONDA_PREFIX/etc/anaconda_ident.yml
-    else
-        ftest=$CONDA_PREFIX/condarc.d/anaconda_ident.yml
-    fi
+    ftest=$CONDA_PREFIX/condarc.d/anaconda_ident.yml
     if [ ! -f "$ftest" ]; then
         echo "ERROR: file not found: $ftest"
         exit 1
@@ -136,12 +131,18 @@ grep '|' "$SCRIPTDIR"/config_tests.txt | while IFS="|" read -r cstr def cha rtk 
             echo "ERROR: repo tokens not included"
             exit 1
         fi
-        repo_chan="$(echo "$repo_tok" | sed -E 's@/?: .*@@')/main"
-        conda search -vvv --override-channels -c "$repo_chan" testpackage
+        repo_chan=$(echo "$repo_tok" | cut -d ' ' -f 1 | sed -E 's@/?:$@@')/main
+        repo_val=$(echo "$repo_tok" | cut -d ' ' -f 2)
+        repo_logs=$(CONDA_LOCAL_REPODATA_TTL=0 CONDA_REMOTE_MAX_RETRIES=1 \
+            conda search -vvv --override-channels -c "$repo_chan" testpackage 2>&1 || :)
+        token_url=$(echo "$repo_logs" | sed -nE 's@.* Adding anaconda token for url <([^>]*)>@\1@p')
+        token_val=$(echo "$repo_logs" | sed -nE 's@.*/t/([^/]*)/main/.*@\1@p' | tail -1)
+        if [[ "$token_url" != "$repo_chan"* || "$token_val" != "$repo_val" ]]; then
+            echo "ERROR: '$token_url' / '$token_val'"
+            exit 1
+        fi
         echo "--------"
     fi
-
-    exit 0
 
     # This corrupts the package cache as a way to test that the files were
     # copied, not hard linked, to the environment
@@ -153,23 +154,6 @@ grep '|' "$SCRIPTDIR"/config_tests.txt | while IFS="|" read -r cstr def cha rtk 
         if [ ! -f "$fpath" ]; then echo "config file not found"; exit 1; fi
         if grep "^corrupted" "$fpath"; then echo "config file linked"; exit 1; fi
     done
-    echo "--------"
-
-    if [ -n "$compatibility" ]; then
-        if [ $compatibility = "--compatibility" ]; then
-            what="Compatibility"
-            compatibility="--legacy-only"
-        else
-            what="Legacy"
-            compatibility=""
-        fi
-        if [ -f "$CONDA_PREFIX/etc/anaconda_ident.yml" ]; then
-            echo "$what mode confirmed"
-        else
-            echo "ERROR: $what mode failed"
-            exit 1
-        fi
-    fi
     echo "--------"
 
     conda list | grep -q ^testpkg || exit 1

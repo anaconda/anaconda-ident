@@ -13,6 +13,7 @@ def get_baked_tokens():
             # anaconda_anon_usage has fully loaded
             if not hasattr(context, "_aid_initialized"):
                 from anaconda_ident import patch
+
                 patch.main()
                 context.__init__()
             _baked_tokens = context.repo_tokens

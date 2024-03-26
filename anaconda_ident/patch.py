@@ -3,14 +3,13 @@ import getpass
 import platform
 import sys
 from os import environ
-from os.path import basename, exists, join
+from os.path import basename
 
 from anaconda_anon_usage import tokens
 from anaconda_anon_usage import utils as aau_utils
 from anaconda_anon_usage.utils import _debug, cached
 from conda.activate import _Activator
 from conda.auxlib.decorators import memoizedproperty
-from conda.base import context as c_context
 from conda.base.context import (
     Context,
     MapParameter,
@@ -19,13 +18,11 @@ from conda.base.context import (
     context,
     env_name,
 )
-from conda.gateways.connection import session as cs
 from conda.gateways import anaconda_client as ac
+from conda.gateways.connection import session as cs
 
 from . import __version__
 from .tokens import hash_string, include_baked_tokens
-
-BAKED_CONDARC = join(sys.prefix, "etc", "anaconda_ident.yml")
 
 # Provide ANACONDA_IDENT_DEBUG and ANACONDA_IDENT_DEBUG_PREFIX
 # as synonyms to their a-a-u equivalents. *_DEBUG enables debug
@@ -178,15 +175,6 @@ def main():
         from anaconda_anon_usage import patch
 
         patch.main(plugin=True)
-
-    # conda.base.context.SEARCH_PATH
-    # Add anaconda_ident's old condarc location for back compatibility
-    # We will deprecate this as we migrate existing customers
-    if exists(BAKED_CONDARC):
-        _debug("Adding anaconda_ident.yml to the search path")
-        sp = c_context._OLD_SEARCH_PATH = c_context.SEARCH_PATH
-        n_sys = min(k for k, v in enumerate(sp) if v.startswith("$CONDA_ROOT"))
-        c_context.SEARCH_PATH = sp[:n_sys] + (BAKED_CONDARC,) + sp[n_sys:]
 
     # conda.base.context.Context
     # Adds anaconda_ident as a managed string config parameter
