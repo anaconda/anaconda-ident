@@ -1,13 +1,12 @@
 import json
 import os
 import re
-import sys
 import subprocess
-
+import sys
 
 from anaconda_anon_usage import __version__ as aau_version
-from anaconda_ident import __version__ as aid_version
 
+from anaconda_ident import __version__ as aid_version
 
 ALL_FIELDS = {"aau", "aid", "c", "s", "e", "u", "h", "n", "o", "U", "H", "N"}
 

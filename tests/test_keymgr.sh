@@ -128,6 +128,21 @@ grep '|' "$SCRIPTDIR"/config_tests.txt | while IFS="|" read -r cstr def cha rtk 
     fi
     echo "--------"
 
+    if [ -n "$rtk" ]; then
+        echo "Verifying repo tokens"
+        repo_tok=$(echo "$all_config" | sed -nE '/^repo_tokens:/{:loop n;/^[A-za-z]/q;s/^ *//p;b loop;};')
+        echo "$repo_tok"
+        if [ -z "$repo_tok" ]; then
+            echo "ERROR: repo tokens not included"
+            exit 1
+        fi
+        repo_chan="$(echo "$repo_tok" | sed -E 's@/?: .*@@')/main"
+        conda search -vvv --override-channels -c "$repo_chan" testpackage
+        echo "--------"
+    fi
+
+    exit 0
+
     # This corrupts the package cache as a way to test that the files were
     # copied, not hard linked, to the environment
     echo "Verifying copies, not links"

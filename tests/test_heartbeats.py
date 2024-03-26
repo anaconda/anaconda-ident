@@ -1,23 +1,20 @@
-import json
 import os
-import re
 import subprocess
 import sys
-from os.path import basename, join
 
 from conda.base.context import context
 from conda.models.channel import Channel
-from anaconda_ident import patch
+from test_utils import get_test_envs, other_tokens, verify_user_agent
 
-from test_utils import get_test_envs, verify_user_agent, other_tokens
+from anaconda_ident import patch
 
 patch.main()
 context.__init__()
 fmt, org, _ = patch.client_token_type()
 if org:
-    other_tokens['o'] = org
-    fmt += 'o'
-expected = ('aau', 'aid') + tuple(fmt)
+    other_tokens["o"] = org
+    fmt += "o"
+expected = ("aau", "aid") + tuple(fmt)
 
 os.environ["ANACONDA_IDENT_DEBUG"] = "1"
 
@@ -29,23 +26,30 @@ print("Testing heartbeat")
 print("-----------------")
 urls = [u for c in context.channels for u in Channel(c).urls()]
 urls.extend(u.rstrip("/") for u in context.channel_alias.urls())
-if any('.anaconda.cloud' in u for u in urls):
-    hb_url = 'https://repo.anaconda.cloud/'
-elif any('.anaconda.com' in u for u in urls):
-    hb_url = 'https://repo.anaconda.com/'
-elif any('.anaconda.org' in u for u in urls):
-    hb_url = 'https://conda.anaconda.org/'
+if any(".anaconda.cloud" in u for u in urls):
+    hb_url = "https://repo.anaconda.cloud/"
+elif any(".anaconda.com" in u for u in urls):
+    hb_url = "https://repo.anaconda.com/"
+elif any(".anaconda.org" in u for u in urls):
+    hb_url = "https://conda.anaconda.org/"
 else:
     hb_url = None
 print("Expected heartbeat url:", hb_url)
-print("Expected user agent tokens:", ','.join(expected))
+print("Expected user agent tokens:", ",".join(expected))
 need_header = True
 for hval in ("true", "false"):
     os.environ["CONDA_ANACONDA_HEARTBEAT"] = hval
     for envname in envs:
         # Do each one twice to make sure the user agent string
         # remains correct on repeated attempts
-        for stype in ("posix", "posix", "cmd.exe", "cmd.exe", "powershell", "powershell"):
+        for stype in (
+            "posix",
+            "posix",
+            "cmd.exe",
+            "cmd.exe",
+            "powershell",
+            "powershell",
+        ):
             cmd = ["conda", "shell." + stype, "activate", envname]
             proc = subprocess.run(
                 cmd,
@@ -55,9 +59,11 @@ for hval in ("true", "false"):
             )
             header = status = ""
             no_hb_url = "No valid heartbeat channel" in proc.stderr
-            hb_urls = set(line.rsplit(' ', 1)[-1]
-                          for line in proc.stderr.splitlines()
-                          if 'Heartbeat url:' in line)
+            hb_urls = {
+                line.rsplit(" ", 1)[-1]
+                for line in proc.stderr.splitlines()
+                if "Heartbeat url:" in line
+            }
             status = ""
             if hval == "true":
                 if not (no_hb_url or hb_urls):
@@ -65,13 +71,15 @@ for hval in ("true", "false"):
                 elif hb_url and not hb_urls:
                     status = "NO HEARTBEAT URL"
                 elif not hb_url and hb_urls:
-                    status = "UNEXPECTED URLS: " + ','.join(hb_urls)
+                    status = "UNEXPECTED URLS: " + ",".join(hb_urls)
                 elif hb_url and any(hb_url not in u for u in hb_urls):
-                    status = "INCORRECT URLS: " + ','.join(hb_urls)
+                    status = "INCORRECT URLS: " + ",".join(hb_urls)
             elif hval == "false" and (no_hb_url or hb_urls):
                 status = "NOT DISABLED"
             if hb_urls and not status:
-                status, header = verify_user_agent(proc.stderr, expected, envname, "Full client token")
+                status, header = verify_user_agent(
+                    proc.stderr, expected, envname, "Full client token"
+                )
             if need_header:
                 if header:
                     print("|", header)

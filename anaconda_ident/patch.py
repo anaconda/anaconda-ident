@@ -19,6 +19,7 @@ from conda.base.context import (
     context,
     env_name,
 )
+from conda.gateways.connection import session as cs
 from conda.gateways import anaconda_client as ac
 
 from . import __version__
@@ -168,7 +169,10 @@ def main():
     if getattr(context, "_aid_initialized", None) is not None:
         _debug("anaconda_ident already active")
         return False
-    _debug("Applying anaconda_anon_usage context patch")
+    _debug("Applying anaconda_ident context patch")
+
+    # This helps us determine if the patching is comlpete
+    context._aid_initialized = False
 
     if getattr(context, "_aau_initialized", None) is None:
         from anaconda_anon_usage import patch
@@ -213,7 +217,7 @@ def main():
 
     _debug("Replacing read_binstar_tokens")
     ac._old_read_binstar_tokens = ac.read_binstar_tokens
-    ac.read_binstar_tokens = _aid_read_binstar_tokens
+    ac.read_binstar_tokens = cs.read_binstar_tokens = _aid_read_binstar_tokens
 
     if hasattr(_Activator, "_old_activate"):
         _debug("Verified heartbeat patch")
@@ -225,5 +229,7 @@ def main():
             install._patch_heartbeat(None)
         except Exception as exc:
             _debug("Error installing heartbeat: %s", exc)
+
+    context._aid_initialized = True
 
     return True
