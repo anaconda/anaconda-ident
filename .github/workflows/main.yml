@@ -111,7 +111,7 @@ jobs:
         ANACONDA_IDENT_RAISE: "1"
       run: bash tests/test_environment.sh ~/aidtest "$TEST_REPO_TOKEN"
   upload:
-    needs: tests
+    needs: [tests, build-win]
     runs-on: ubuntu-latest
     steps:
     - name: Download artifacts
