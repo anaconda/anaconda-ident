@@ -11,7 +11,10 @@ def get_baked_tokens():
             # conda, the context object will not be initialized.
             # We detect this by looking for evidence that
             # anaconda_anon_usage has fully loaded
-            if not getattr(context, "_aau_initialized", False):
+            if not hasattr(context, "_aid_initialized"):
+                from anaconda_ident import patch
+
+                patch.main()
                 context.__init__()
             _baked_tokens = context.repo_tokens
         except Exception:

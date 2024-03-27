@@ -26,6 +26,8 @@ requirements:
     - python>=3.6
     - conda>=23.7
     - anaconda-anon-usage>=0.4.1,<1
+  run_constrained:
+    - anaconda_client >=1.12.2
 
 test:
   requires:
@@ -43,14 +45,17 @@ test:
     - export PYTHONUNBUFFERED=1  # [unix]
     - set ANACONDA_IDENT_DEBUG=1  # [win]
     - set PYTHONUNBUFFERED=1  # [win]
+    - anaconda-ident --expect
     - conda create -n testchild1 --yes
     - conda create -n testchild2 --yes
     - conda info
     - conda info --envs
-    - anaconda-ident --expect
     - anaconda-keymgr --help
     - anaconda-ident-hash --help
     - python tests/test_config.py
+    - export ANACONDA_IDENT=full:testorg  # [unix]
+    - set ANACONDA_IDENT=full:testorg # [win]
+    - python tests/test_heartbeats.py
 
 about:
   home: https://github.com/Anaconda-Platform/anaconda-ident

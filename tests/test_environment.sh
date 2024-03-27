@@ -15,7 +15,8 @@ function finish() {
 
 echo "Environment tester"
 echo "------------------------"
-T_PREFIX=$(cd "$1" && pwd); shift
+T_PREFIX=$1; shift
+T_PREFIX=$(cd "$T_PREFIX" && pwd)
 echo "prefix ... $T_PREFIX"
 
 echo -n "python ... "
@@ -95,18 +96,9 @@ else
   success=no
 fi
 
-echo -n "enabled ... "
-cnt=$(echo "$status" | grep -c ": ENABLED")
-if [ "$cnt" -ge 3 ]; then
-  echo "yes"
-else
-  echo "NO"
-  success=no
-fi
-
 echo -n "user agent ... "
 # need the --json output so the user agent sanitizer is bypassed
-user_agent=$($T_PYTHON -m conda info --json | sed -nE 's@^ *"user_agent": *"([^"]*).*@\1@p')
+user_agent=$($T_PYTHON -m conda info --json | sed -nE 's@^ *"user_agent": *"([^"]*).*@\1@p' | grep ^conda)
 if echo "$user_agent" | grep -q o/installertest; then
   echo "yes"
 else

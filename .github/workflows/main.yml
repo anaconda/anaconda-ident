@@ -30,7 +30,7 @@ jobs:
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda activate base
-        conda install conda conda-build
+        conda install conda conda-build conda-index
         conda build conda.recipe --no-test
         aid_version=$(conda search local::anaconda-ident | grep ^anaconda-ident | awk '{print $2}' | tail -1)
         conda install -c local anaconda-ident=$aid_version
@@ -58,7 +58,7 @@ jobs:
         conda activate base
         conda install conda conda-build
         conda build conda.recipe
-  test:
+  tests:
     needs: build
     defaults:
       run:
@@ -72,18 +72,27 @@ jobs:
     steps:
     - name: Retrieve the source code
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
-      with:
-        fetch-depth: 0
     - name: Download build artfiacts
       uses: actions/download-artifact@c850b930e6ba138125429b7e5c93fc707a7f8427 # v4
       with:
         name: conda-bld
         path: ./conda-bld
+    - name: Run local tests
+      run: |
+        mv conda-bld $CONDA/
+        source $CONDA/etc/profile.d/conda.sh
+        aid_version=$(conda search local::anaconda-ident | awk '{print $2}' | tail -1)
+        conda create -p ./testenv -c local anaconda-ident=$aid_version conda=${{ matrix.cversion }}
+        source ./testenv/etc/profile.d/conda.sh
+        conda activate base
+        conda create -n testchild1 --yes
+        conda create -n testchild2 --yes
+        python tests/test_config.py
+        python tests/test_heartbeats.py
     - name: Build the test environment and an installer
       env:
         TEST_REPO_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
       run: |
-        mv conda-bld $CONDA/
         source $CONDA/etc/profile.d/conda.sh
         conda install constructor conda-index
         aid_version=$(conda search local::anaconda-ident | grep ^anaconda-ident | awk '{print $2}' | tail -1)
@@ -101,21 +110,11 @@ jobs:
         ANACONDA_IDENT_DEBUG: "1"
         ANACONDA_IDENT_RAISE: "1"
       run: bash tests/test_environment.sh ~/aidtest "$TEST_REPO_TOKEN"
-    - name: Run local tests
-      run: |
-        source $CONDA/etc/profile.d/conda.sh
-        aid_version=$(conda search local::anaconda-ident | awk '{print $2}' | tail -1)
-        conda create -p ./testenv -c local anaconda-ident=$aid_version conda=${{ matrix.cversion }}
-        source ./testenv/etc/profile.d/conda.sh
-        conda activate base
-        conda create -n testchild1 --yes
-        conda create -n testchild2 --yes
-        python tests/test_config.py
   upload:
-    needs: test
+    needs: [tests, build-win]
     runs-on: ubuntu-latest
     steps:
-    - name: Download package
+    - name: Download artifacts
       uses: actions/download-artifact@c850b930e6ba138125429b7e5c93fc707a7f8427 # v4
       with:
         name: conda-bld

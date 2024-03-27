@@ -2,15 +2,14 @@ import base64
 import getpass
 import platform
 import sys
-from os import environ, sep
-from os.path import abspath, basename, exists, expanduser, expandvars, join
+from os import environ
+from os.path import basename
 
-from anaconda_anon_usage import patch as aau_patch
 from anaconda_anon_usage import tokens
 from anaconda_anon_usage import utils as aau_utils
 from anaconda_anon_usage.utils import _debug, cached
 from conda.activate import _Activator
-from conda.base import context as c_context
+from conda.auxlib.decorators import memoizedproperty
 from conda.base.context import (
     Context,
     MapParameter,
@@ -18,13 +17,12 @@ from conda.base.context import (
     PrimitiveParameter,
     context,
     env_name,
-    locate_prefix_by_name,
 )
+from conda.gateways import anaconda_client as ac
+from conda.gateways.connection import session as cs
 
 from . import __version__
-from .tokens import hash_string
-
-BAKED_CONDARC = join(sys.prefix, "etc", "anaconda_ident.yml")
+from .tokens import hash_string, include_baked_tokens
 
 # Provide ANACONDA_IDENT_DEBUG and ANACONDA_IDENT_DEBUG_PREFIX
 # as synonyms to their a-a-u equivalents. *_DEBUG enables debug
@@ -49,18 +47,6 @@ _client_token_formats = {
     "full": "cseuhn",
     "fullhash": "cseUHN",
 }
-
-
-def normalize_prefix(value=None):
-    try:
-        if value in (None, "", "root", "base"):
-            return sys.prefix
-        elif sep in value:
-            return abspath(expanduser(expandvars(value)))
-        else:
-            return locate_prefix_by_name(value)
-    except Exception:
-        return None
 
 
 def get_environment_prefix():
@@ -131,6 +117,7 @@ def client_token_type():
 
 @cached
 def client_token_string():
+    _debug("Entering client_token_string")
     parts = ["aau/" + tokens.version_token(), "aid/" + __version__]
     fmt, org, pepper = client_token_type()
     pfx = get_environment_prefix()
@@ -169,61 +156,65 @@ def _aid_user_agent(ctx):
     return result
 
 
-def _aid_activate(self):
-    if context.anaconda_heartbeat:
-        from .heartbeat import attempt_heartbeat
-
-        context.checked_prefix = normalize_prefix(self.env_name_or_prefix)
-        if context.checked_prefix is None:
-            _debug("Invalid environment; skipping heartbeat")
-        else:
-            attempt_heartbeat("main", "activate", verbose=False, standalone=False)
-            _debug("Heartbeat attempted")
-    return self._old_activate()
+def _aid_read_binstar_tokens():
+    tokens = ac._old_read_binstar_tokens()
+    include_baked_tokens(tokens)
+    return tokens
 
 
-# conda.base.context.SEARCH_PATH
-# Add anaconda_ident's old condarc location for back compatibility
-# We will deprecate this as we migrate existing customers
-if exists(BAKED_CONDARC) and not hasattr(c_context, "_OLD_SEARCH_PATH"):
-    _debug("Adding anaconda_ident.yml to the search path")
-    sp = c_context._OLD_SEARCH_PATH = c_context.SEARCH_PATH
-    n_sys = min(k for k, v in enumerate(sp) if v.startswith("$CONDA_ROOT"))
-    c_context.SEARCH_PATH = sp[:n_sys] + (BAKED_CONDARC,) + sp[n_sys:]
+def main():
+    if getattr(context, "_aid_initialized", None) is not None:
+        _debug("anaconda_ident already active")
+        return False
+    _debug("Applying anaconda_ident context patch")
 
-# conda.base.context.Context
-# Adds anaconda_ident as a managed string config parameter
-if not hasattr(Context, "anaconda_ident"):
+    # This helps us determine if the patching is comlpete
+    context._aid_initialized = False
+
+    if getattr(context, "_aau_initialized", None) is None:
+        from anaconda_anon_usage import patch
+
+        patch.main(plugin=True)
+
+    # conda.base.context.Context
+    # Adds anaconda_ident as a managed string config parameter
     _debug("Adding the anaconda_ident config parameter")
     _param = ParameterLoader(PrimitiveParameter("default"))
     Context.anaconda_ident = _param
     Context.parameter_names += (_param._set_name("anaconda_ident"),)
 
-# conda.base.context.Context
-# Adds repo_tokens as a managed map config parameter
-if not hasattr(Context, "repo_tokens"):
+    # conda.base.context.Context
+    # Adds repo_tokens as a managed map config parameter
     _debug("Adding the repo_tokens config parameter")
     _param = ParameterLoader(MapParameter(PrimitiveParameter("", str)))
     Context.repo_tokens = _param
     Context.parameter_names += (_param._set_name("repo_tokens"),)
 
-# conda.base.context.Context
-# Adds anaconda_heartbeat as a managed boolean config parameter
-if not hasattr(Context, "anaconda_heartbeat"):
+    # conda.base.context.Context
+    # Adds anaconda_heartbeat as a managed boolean config parameter
     _debug("Adding the anaconda_heartbeat config parameter")
     _param = ParameterLoader(PrimitiveParameter(False))
     Context.anaconda_heartbeat = _param
     Context.parameter_names += (_param._set_name("anaconda_heartbeat"),)
 
-# anaconda_anon_usage.patch._new_user_agent
-if not hasattr(aau_patch, "_old_aau_user_agent"):
+    # conda.base.context.Context.user_agent
+    # Adds the ident token to the user agent string
     _debug("Replacing anaconda_anon_usage user agent in module")
-    aau_patch._old_aau_user_agent = aau_patch._new_user_agent
-    aau_patch._new_user_agent = _aid_user_agent
+    assert hasattr(Context, "_old_user_agent")
+    Context.user_agent = memoizedproperty(_aid_user_agent)
 
-# conda.activate._Activator.activate
-# Adds activation heartbeats
-if _Activator is not None and not hasattr(_Activator, "_old_activate"):
-    _debug("Replacing activate function")
-    _Activator._old_activate = _Activator.activate
-    _Activator.activate = _aid_activate
+    if hasattr(_Activator, "_old_activate"):
+        _debug("Verified heartbeat patch")
+    else:
+        _debug("Heartbeat patch not applied")
+
+    if hasattr(ac, "_old_read_binstar_tokens"):
+        _debug("Verified binstar patch")
+    else:
+        _debug("Binstar patch not applied")
+        ac._old_read_binstar_tokens = ac.read_binstar_tokens
+        ac.read_binstar_tokens = cs.read_binstar_tokens = _aid_read_binstar_tokens
+
+    context._aid_initialized = True
+
+    return True

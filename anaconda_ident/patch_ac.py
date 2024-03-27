@@ -1,3 +1,7 @@
+# This patch allows third-party libraries that directly
+# import conda.gateways.anaconda_client to take advantage
+# of the repo tokens support in anaconda-ident.
+
 from conda.gateways import anaconda_client as ac
 
 from anaconda_ident.tokens import include_baked_tokens
@@ -9,6 +13,5 @@ def _new_read_binstar_tokens():
     return tokens
 
 
-if not hasattr(ac, "_old_read_binstar_tokens"):
-    ac._old_read_binstar_tokens = ac.read_binstar_tokens
-    ac.read_binstar_tokens = _new_read_binstar_tokens
+ac._old_read_binstar_tokens = ac.read_binstar_tokens
+ac.read_binstar_tokens = _new_read_binstar_tokens

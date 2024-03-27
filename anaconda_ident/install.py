@@ -191,7 +191,7 @@ def _eolmatch(text, ptext):
     return ptext
 
 
-def _read(args, pfile, patch_text):
+def _read(pfile, patch_text):
     if not exists(pfile):
         return None, "NOT PRESENT"
     with open(pfile, "rb") as fp:
@@ -228,20 +228,20 @@ def _strip_patch(text):
 
 def _patch(args, pfile, pname):
     global PATCH_TEXT
-    verbose = args.verbose or args.status
+    verbose = args and (args.verbose or args.status)
     tpath = relpath(pfile, _sp_dir())
     if pname:
         patch_text = PATCH_TEXT.replace(b"{version}", __version__.encode("ascii"))
         patch_text = patch_text.replace(b"{pname}", pname.encode("ascii"))
     else:
         patch_text = None
-    text, status = _read(args, pfile, patch_text)
+    text, status = _read(pfile, patch_text)
     if status == "DISABLED" and not patch_text:
         return
     if verbose:
         print(f"  {tpath}: {status}")
-    enable = (args.enable or args.verify or args.expect) and patch_text
-    disable = args.disable or args.clean or not patch_text
+    enable = (not args or args.enable or args.verify or args.expect) and patch_text
+    disable = args and (args.disable or args.clean or not patch_text)
     if status == "NEEDS UPDATE":
         need_change = True
         status = "reverting" if disable else "updating"
@@ -255,7 +255,7 @@ def _patch(args, pfile, pname):
         need_change = False
     if not need_change:
         return
-    if args.expect and need_change:
+    if args and args.expect and need_change:
         error("not properly enabled", fatal=True)
     if verbose:
         print(f"    {status} patch...", end="")
@@ -285,14 +285,18 @@ def _patch(args, pfile, pname):
         print(f"{what}: {exc}")
         if renamed:
             os.rename(pfile_orig, pfile)
-    text, status = _read(args, pfile, patch_text)
+    text, status = _read(pfile, patch_text)
     if verbose:
         print(f"    new status: {status}")
 
 
+# The only patch we need now is conda.activate
+# All other patch calls are to strip out old patch code
+
+
 def _patch_conda_context(args):
     pfile = join(_sp_dir(), "conda", "base", "context.py")
-    _patch(args, pfile, "patch")
+    _patch(args, pfile, None)
 
 
 def _patch_anon_usage(args):
@@ -307,21 +311,22 @@ def _patch_anaconda_client(args):
 
 def _patch_binstar_client(args):
     bfile = join(_sp_dir(), "binstar_client", "utils", "config.py")
-    _patch(args, bfile, "patch_bc")
+    _patch(args, bfile, None)
 
 
 def _patch_heartbeat(args):
-    bfile = join(_sp_dir(), "conda", "activate.py")
-    _patch(args, bfile, None)
+    pfile = join(_sp_dir(), "conda", "activate.py")
+    _patch(args, pfile, "patch_hb")
 
 
 def manage_patch(args):
     if args.verbose or args.status:
-        print("patch targets:")
-    _patch_conda_context(args)
-    _patch_anon_usage(args)
+        print("patch target:")
+    if not args.verify:
+        _patch_conda_context(args)
+        _patch_anon_usage(args)
+        _patch_binstar_client(args)
     _patch_anaconda_client(args)
-    _patch_binstar_client(args)
     _patch_heartbeat(args)
 
 
