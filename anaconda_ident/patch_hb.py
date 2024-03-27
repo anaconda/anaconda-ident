@@ -1,3 +1,7 @@
+# This patch enables the custom activation heartbeat.
+# Future versions of conda will enable this using a
+# plugin mechanism.
+
 from conda.activate import _Activator
 
 
