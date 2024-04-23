@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Retrieve the source code
-      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+      uses: actions/checkout@1d96c772d19495a3b5c517cd2bc0cb401ea0529f # v4
       with:
         fetch-depth: 0
     - name: Build the package
@@ -48,7 +48,7 @@ jobs:
     runs-on: windows-latest
     steps:
     - name: Retrieve the source code
-      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+      uses: actions/checkout@1d96c772d19495a3b5c517cd2bc0cb401ea0529f # v4
       with:
         fetch-depth: 0
     - name: Build the package
@@ -71,7 +71,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
     - name: Retrieve the source code
-      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+      uses: actions/checkout@1d96c772d19495a3b5c517cd2bc0cb401ea0529f # v4
     - name: Download build artfiacts
       uses: actions/download-artifact@9c19ed7fe5d278cd354c7dfd5d3b88589c7e2395 # v4
       with:
