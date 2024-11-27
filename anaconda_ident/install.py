@@ -398,7 +398,11 @@ def read_condarc(args, fname):
     if fexists:
         try:
             with open(fname) as fp:
-                condarc = _yaml().safe_load(fp)
+                yaml = _yaml()
+                if hasattr(yaml, "YAML"):
+                    condarc = yaml.YAML(typ="safe", pure=True).load(fp)
+                else:
+                    condarc = yaml.safe_load(fp)
             if verbose:
                 _print_condarc(args, condarc, changes=False)
         except Exception as exc:
@@ -483,7 +487,11 @@ def write_condarc(args, fname, condarc):
         if exists(fname):
             renamed = tryop(os.rename, fname, fname + ".orig")
         with open(fname, "w") as fp:
-            _yaml().dump(condarc, fp)
+            yaml = _yaml()
+            if hasattr(yaml, "YAML"):
+                yaml.YAML(typ="safe", pure=True).dump(condarc, fp)
+            else:
+                yaml.safe_dump(condarc, fp)
         if renamed:
             tryop(os.unlink, fname + ".orig")
     except Exception:

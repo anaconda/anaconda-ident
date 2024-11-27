@@ -39,7 +39,6 @@ specs:
 EOD
 
 v1=$(echo "$c_version" | cut -d '.' -f 1)
-v2=$(echo "$c_version" | cut -d '.' -f 2)
 if [[ "$v1" -gt 23 ]]; then
   # Install navigator only for conda 24 and later
   echo "  - anaconda-navigator" >>construct.yaml

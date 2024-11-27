@@ -11,9 +11,9 @@ from tarfile import TarInfo
 from tarfile import open as tf_open
 
 try:
-    import ruamel.yaml as ruamel_yaml
+    from ruamel.yaml import YAML
 except Exception:
-    import ruamel_yaml
+    from ruamel_yaml import YAML
 
 from . import __version__
 
@@ -173,7 +173,9 @@ def _bytes(data, yaml=False):
         pass
     elif isinstance(data, dict):
         if yaml:
-            data = ruamel_yaml.safe_dump(data, default_flow_style=False).encode("ascii")
+            buf = io.BytesIO()
+            YAML(typ="safe", pure=True).dump(data, buf)
+            data = buf.getvalue()
         else:
             data = json.dumps(data, separators=(",", ":"), sort_keys=True).encode(
                 "ascii"
@@ -314,7 +316,7 @@ def build_config_dict(args):
                 print(f"  {k}: {v}")
     if args.other_settings is not None:
         with open(args.other_settings) as fp:
-            data = ruamel_yaml.safe_load(fp)
+            data = YAML(typ="safe", pure=True).load(fp)
         result.update(data)
     return result
 

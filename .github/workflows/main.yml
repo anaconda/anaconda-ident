@@ -80,6 +80,13 @@ jobs:
       with:
         name: conda-bld
         path: ./conda-bld
+    - name: Setup Miniconda
+      uses: conda-incubator/setup-miniconda@d2e6a045a86077fb6cad6f5adf368e9076ddaa8d # v3.1.0
+      with:
+        miniconda-version: 'latest'
+        auto-activate-base: true
+        activate-environment: ""
+        conda-solver: classic
     - name: Run local tests
       run: |
         mv conda-bld $CONDA/
