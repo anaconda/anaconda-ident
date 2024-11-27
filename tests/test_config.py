@@ -1,8 +1,9 @@
 import os
 import subprocess
 import sys
-from os.path import join
+from os.path import exists, join
 
+from anaconda_anon_usage.utils import _random_token
 from conda.base.context import context
 from conda.models.channel import Channel
 from test_utils import get_test_envs, other_tokens, verify_user_agent
@@ -109,8 +110,11 @@ if not success:
 # In theory, test_fields = _client_token_formats[param]
 # I'm hardcoding them here so the test doesn't depend on that
 # part of the code, with the exception of "baked" test below.
+# A capital O represents an on-disk organization token.
 test_patterns = (
     ("full:org1", "uhno"),
+    ("full:org1", "uhnoO"),
+    ("full", "unhO"),
     ("none", ""),
     ("default", ""),
     ("username", "u"),
@@ -124,6 +128,7 @@ test_patterns = (
     ("default:org2", "o"),
     (":org3", "o"),
     ("none:org4", "o"),
+    ("none", "O"),
     ("u", "u"),
     ("h", "h"),
     ("n", "n"),
@@ -132,6 +137,7 @@ test_patterns = (
     ("N", "N"),
     ("o:org4", "o"),
     ("o", ""),
+    ("", "O"),
 )
 
 test_org = None
@@ -155,6 +161,8 @@ for env in envs:
 
 nfailed = 0
 
+ofile = join(context.default_prefix, "org_token")
+otoken = _random_token()
 
 id_last = False
 need_header = True
@@ -162,10 +170,19 @@ for aau_state in (True, False):
     os.environ["CONDA_ANACONDA_ANON_USAGE"] = "on" if aau_state else "off"
     anon_flag = "T" if aau_state else "F"
     for param, test_fields, envname in test_patterns:
-        other_tokens["o"] = param.split(":", 1)[-1] if ":" in param else ""
+        org = org2 = None
+        if "O" in test_fields:
+            org2 = otoken
+            with open(ofile, "w") as fp:
+                fp.write(otoken)
+        elif exists(ofile):
+            os.unlink(ofile)
+        org = param.split(":", 1)[-1] if ":" in param else ""
+        org = org + "/" + org2 if org and org2 else (org or org2)
+        other_tokens["o"] = org
         os.environ["CONDA_ANACONDA_IDENT"] = param
-        test_fields = "cse" + test_fields
-        test_fields = "".join(dict.fromkeys(test_fields))
+        test_fields = orig_fields = "cse" + test_fields
+        test_fields = "".join(dict.fromkeys(test_fields.replace("O", "o")))
         expected = list(test_fields)
         expected.extend(("aau", "aid"))
         # We need the specific channel configuration here so we can
@@ -188,14 +205,16 @@ for aau_state in (True, False):
             capture_output=True,
             text=True,
         )
+        if exists(ofile):
+            os.unlink(ofile)
         status, header = verify_user_agent(proc.stderr, expected, envname)
         if need_header:
             need_header = False
             print("|", header)
-            print(f"anon    ident     {'envname':{maxlen}} fields  status")
-            print(f"---- ------------ {'-' * maxlen} ------- ------")
+            print(f"anon    ident     {'envname':{maxlen}} fields   status")
+            print(f"---- ------------ {'-' * maxlen} -------- ------")
         print(
-            f"{anon_flag:4} {param:12} {envname:{maxlen}} {test_fields:7} {status or 'OK'}"
+            f"{anon_flag:4} {param:12} {envname:{maxlen}} {orig_fields:8} {status or 'OK'}"
         )
         if status:
             print("|", header)
@@ -203,6 +222,9 @@ for aau_state in (True, False):
             nfailed += 1
             if "--fast" in sys.argv:
                 sys.exit(1)
+
+if exists(ofile):
+    os.unlink(ofile)
 
 print("")
 print("Checking environment tokens")
