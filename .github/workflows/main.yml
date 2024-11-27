@@ -67,7 +67,10 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        cversion: ['23.7.4', '23.9.0', '23.10.0', '23.11.0', '24.1.2', '24.3.0']
+        # 23.7.0 : first plugin-based variant, but conda info --envs --json is broken
+        # 23.9.0 : last variant with the classic default solver
+        # 23.10.0 : first variant with the libmamba default solver
+        cversion: ['23.7.1', '23.9.0', '23.10.0', '24.11.0']
     runs-on: ${{ matrix.os }}
     steps:
     - name: Retrieve the source code
@@ -77,6 +80,13 @@ jobs:
       with:
         name: conda-bld
         path: ./conda-bld
+    - name: Setup Miniconda
+      uses: conda-incubator/setup-miniconda@d2e6a045a86077fb6cad6f5adf368e9076ddaa8d # v3.1.0
+      with:
+        miniconda-version: 'latest'
+        auto-activate-base: true
+        activate-environment: ""
+        conda-solver: classic
     - name: Run local tests
       run: |
         mv conda-bld $CONDA/
