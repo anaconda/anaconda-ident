@@ -37,7 +37,7 @@ jobs:
         bash tests/test_keymgr.sh --build-only
         mv $CONDA/conda-bld .
     - name: Upload build artifacts
-      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4
+      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4
       with:
         if-no-files-found: error
         name: conda-bld
