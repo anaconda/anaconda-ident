@@ -30,6 +30,8 @@ jobs:
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda activate base
+        conda config --prepend channels defaults
+        conda config --append channels ctools
         conda install conda conda-build conda-index
         conda build conda.recipe --no-test
         aid_version=$(conda search local::anaconda-ident | grep ^anaconda-ident | awk '{print $2}' | tail -1)
@@ -55,6 +57,8 @@ jobs:
       shell: bash
       run: |
         source $CONDA/etc/profile.d/conda.sh
+        conda config --prepend channels defaults
+        conda config --append channels ctools
         conda activate base
         conda install conda conda-build
         conda build conda.recipe
@@ -87,6 +91,7 @@ jobs:
         auto-activate-base: true
         activate-environment: ""
         conda-solver: classic
+        channels: defaults,ctools
     - name: Run local tests
       run: |
         mv conda-bld $CONDA/

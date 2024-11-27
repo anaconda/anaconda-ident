@@ -7,7 +7,8 @@ from os.path import basename
 
 from anaconda_anon_usage import tokens
 from anaconda_anon_usage import utils as aau_utils
-from anaconda_anon_usage.utils import _debug, cached, system_token
+from anaconda_anon_usage.tokens import system_token
+from anaconda_anon_usage.utils import _debug, cached
 from conda.activate import _Activator
 from conda.auxlib.decorators import memoizedproperty
 from conda.base.context import (
