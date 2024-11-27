@@ -7,6 +7,7 @@ from os.path import basename
 
 from anaconda_anon_usage import tokens
 from anaconda_anon_usage import utils as aau_utils
+from anaconda_anon_usage.tokens import system_token
 from anaconda_anon_usage.utils import _debug, cached
 from conda.activate import _Activator
 from conda.auxlib.decorators import memoizedproperty
@@ -102,6 +103,13 @@ def client_token_type():
                 pepper = base64.b64decode(pepper + "=" * npad)
             except Exception:
                 pass
+    org2 = system_token()
+    if org and org2:
+        _debug("System and local org tokens differ")
+        org = org + "/" + org2
+    elif org2:
+        _debug("System token found")
+        org = org2
     fmt = _client_token_formats.get(token_type, token_type)
     _debug("Preliminary usage tokens: %s", fmt)
     if org and "o" not in fmt:
