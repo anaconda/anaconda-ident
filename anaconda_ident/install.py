@@ -290,7 +290,7 @@ def _patch(args, pfile, pname):
         print(f"    new status: {status}")
 
 
-# The only patch we need now is conda.activate
+# The only patch we need now is conda.gateways.anaconda_client
 # All other patch calls are to strip out old patch code
 
 
@@ -316,7 +316,7 @@ def _patch_binstar_client(args):
 
 def _patch_heartbeat(args):
     pfile = join(_sp_dir(), "conda", "activate.py")
-    _patch(args, pfile, "patch_hb")
+    _patch(args, pfile, None)
 
 
 def manage_patch(args):

@@ -7,9 +7,7 @@ from os.path import basename
 
 from anaconda_anon_usage import tokens
 from anaconda_anon_usage import utils as aau_utils
-from anaconda_anon_usage.tokens import system_token
 from anaconda_anon_usage.utils import _debug, cached
-from conda.activate import _Activator
 from conda.auxlib.decorators import memoizedproperty
 from conda.base.context import (
     Context,
@@ -38,15 +36,15 @@ if DEBUG:
 
 _client_token_formats = {
     "none": "",
-    "default": "cse",
-    "username": "cseu",
-    "hostname": "cseh",
-    "environment": "csen",
-    "userenv": "cseun",
-    "userhost": "cseuh",
-    "hostenv": "csehn",
-    "full": "cseuhn",
-    "fullhash": "cseUHN",
+    "default": "",
+    "username": "u",
+    "hostname": "h",
+    "environment": "n",
+    "userenv": "un",
+    "userhost": "uh",
+    "hostenv": "hn",
+    "full": "uhn",
+    "fullhash": "UHN",
 }
 
 
@@ -80,6 +78,8 @@ def get_hostname(hash=False, pepper=None):
     value = platform.node()
     if not value:
         _debug("platform.node returned an empty value")
+    if value.endswith(".local"):
+        value = value.rsplit(".", 1)[0]
     if hash:
         value = hash_string("hostname", value, pepper)
     return value
@@ -103,22 +103,9 @@ def client_token_type():
                 pepper = base64.b64decode(pepper + "=" * npad)
             except Exception:
                 pass
-    org2 = system_token()
-    if org and org2:
-        _debug("System and local org tokens differ")
-        org = org + "/" + org2
-    elif org2:
-        _debug("System token found")
-        org = org2
     fmt = _client_token_formats.get(token_type, token_type)
     _debug("Preliminary usage tokens: %s", fmt)
-    if org and "o" not in fmt:
-        _debug("Organization string provided; adding o to format")
-        fmt += "o"
-    elif not org and "o" in fmt:
-        _debug("Expected an organization string; none provided.")
-        fmt = fmt.replace("o", "")
-    fmt = "cse" + "".join(dict.fromkeys(c for c in fmt if c in "uhonUHN"))
+    fmt = "csea" + "".join(dict.fromkeys(c for c in fmt if c in "uhnUHN")) + "om"
     _debug("Final token config: %s %s", fmt, org)
     return fmt, org, pepper
 
@@ -137,15 +124,21 @@ def client_token_string():
         elif code == "s":
             value = tokens.session_token()
         elif code == "e":
-            value = tokens.environment_token(pfx)
+            value = tokens.environment_token()
+        elif code == "a":
+            value = tokens.anaconda_cloud_token()
         elif code in "uU":
             value = get_username(hash=code == "U", pepper=pepper)
         elif code in "hH":
             value = get_hostname(hash=code == "H", pepper=pepper)
-        elif code == "o":
-            value = org
         elif code in "nN":
             value = get_environment_name(pfx, hash=code == "N", pepper=pepper)
+        elif code == "o":
+            value = tokens.organization_token() or org
+            if value and org and org not in value:
+                value = "/".join(set(value.split("/") + org.split("/")))
+        elif code == "m":
+            value = tokens.machine_token()
         else:
             _debug("Unexpected client token code: %s", code)
             value = None
@@ -170,7 +163,7 @@ def _aid_read_binstar_tokens():
     return tokens
 
 
-def main():
+def main(command=None):
     if getattr(context, "_aid_initialized", None) is not None:
         _debug("anaconda_ident already active")
         return False
@@ -198,23 +191,11 @@ def main():
     Context.repo_tokens = _param
     Context.parameter_names += (_param._set_name("repo_tokens"),)
 
-    # conda.base.context.Context
-    # Adds anaconda_heartbeat as a managed boolean config parameter
-    _debug("Adding the anaconda_heartbeat config parameter")
-    _param = ParameterLoader(PrimitiveParameter(False))
-    Context.anaconda_heartbeat = _param
-    Context.parameter_names += (_param._set_name("anaconda_heartbeat"),)
-
     # conda.base.context.Context.user_agent
     # Adds the ident token to the user agent string
     _debug("Replacing anaconda_anon_usage user agent in module")
     assert hasattr(Context, "_old_user_agent")
     Context.user_agent = memoizedproperty(_aid_user_agent)
-
-    if hasattr(_Activator, "_old_activate"):
-        _debug("Verified heartbeat patch")
-    else:
-        _debug("Heartbeat patch not applied")
 
     if hasattr(ac, "_old_read_binstar_tokens"):
         _debug("Verified binstar patch")

@@ -94,6 +94,7 @@ jobs:
         channels: defaults,ctools
     - name: Run local tests
       run: |
+        conda config --add channels defaults
         mv conda-bld $CONDA/
         source $CONDA/etc/profile.d/conda.sh
         aid_version=$(conda search local::anaconda-ident | awk '{print $2}' | tail -1)
