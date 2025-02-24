@@ -161,6 +161,10 @@ for env in envs:
 
 nfailed = 0
 
+local_org = other_tokens.pop("o", None)
+base_fields = "csem" if "m" in other_tokens else "cse"
+if local_org:
+    base_fields += "o"
 ofile = join(context.default_prefix, "org_token")
 otoken = _random_token()
 
@@ -178,10 +182,14 @@ for aau_state in (True, False):
         elif exists(ofile):
             os.unlink(ofile)
         org = param.split(":", 1)[-1] if ":" in param else ""
-        org = org + "/" + org2 if org and org2 else (org or org2)
-        other_tokens["o"] = org
+        org = (
+            ([org] if org else [])
+            + ([org2] if org2 else [])
+            + ([local_org] if local_org else [])
+        )
+        other_tokens["o"] = "/".join(sorted(set(org)))
         os.environ["CONDA_ANACONDA_IDENT"] = param
-        test_fields = orig_fields = "cse" + test_fields
+        test_fields = orig_fields = base_fields + test_fields
         test_fields = "".join(dict.fromkeys(test_fields.replace("O", "o")))
         expected = list(test_fields)
         expected.extend(("aau", "aid"))
@@ -189,12 +197,15 @@ for aau_state in (True, False):
         # experiment with different channel aliases and channel lists
         # in the keymgr packages
         cmd = [
+            "proxyspy",
+            "--return-code",
+            "404",
+            "--",
             "conda",
             "install",
-            "-vvv",
             "--override-channels",
             "-c",
-            "https://repo.anaconda.com/pkgs/main",
+            "defaults",
             "fakepackage",
         ]
         if envname:
@@ -207,14 +218,14 @@ for aau_state in (True, False):
         )
         if exists(ofile):
             os.unlink(ofile)
-        status, header = verify_user_agent(proc.stderr, expected, envname)
+        status, header = verify_user_agent(proc.stdout, expected, envname)
         if need_header:
             need_header = False
             print("|", header)
-            print(f"anon    ident     {'envname':{maxlen}} fields   status")
-            print(f"---- ------------ {'-' * maxlen} -------- ------")
+            print(f"anon    ident     {'envname':{maxlen}}   fields    status")
+            print(f"---- ------------ {'-' * maxlen} ---------- ------")
         print(
-            f"{anon_flag:4} {param:12} {envname:{maxlen}} {orig_fields:8} {status or 'OK'}"
+            f"{anon_flag:4} {param:12} {envname:{maxlen}} {orig_fields:10} {status or 'OK'}"
         )
         if status:
             print("|", header)

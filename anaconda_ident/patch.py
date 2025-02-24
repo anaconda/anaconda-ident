@@ -124,7 +124,7 @@ def client_token_string():
         elif code == "s":
             value = tokens.session_token()
         elif code == "e":
-            value = tokens.environment_token()
+            value = tokens.environment_token(pfx)
         elif code == "a":
             value = tokens.anaconda_cloud_token()
         elif code in "uU":

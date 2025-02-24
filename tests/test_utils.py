@@ -5,10 +5,11 @@ import subprocess
 import sys
 
 from anaconda_anon_usage import __version__ as aau_version
+from anaconda_anon_usage import tokens
 
 from anaconda_ident import __version__ as aid_version
 
-ALL_FIELDS = {"aau", "aid", "c", "s", "e", "u", "h", "n", "o", "U", "H", "N"}
+ALL_FIELDS = {"aau", "aid", "c", "s", "e", "u", "h", "n", "o", "m", "U", "H", "N"}
 
 
 def get_test_envs():
@@ -27,6 +28,12 @@ def get_test_envs():
 
 
 other_tokens = {"aau": aau_version, "aid": aid_version}
+mtoken = tokens.machine_token()
+if mtoken:
+    other_tokens["m"] = mtoken
+otoken = tokens.organization_token()
+if otoken:
+    other_tokens["o"] = otoken
 all_session_tokens = set()
 all_environments = set()
 
@@ -38,17 +45,8 @@ def verify_user_agent(output, expected, envname=None, marker=None):
     # .... {'User-Agent': 'conda/...', ...}
     other_tokens["n"] = envname if envname else "base"
 
-    user_agent = ""
-    marker = marker or "User-Agent"
-    MATCH_RE = r".*" + marker + r'(["\']?): *(["\']?)(.+)'
-    for v in output.splitlines():
-        match = re.match(MATCH_RE, v)
-        if match:
-            _, delim, user_agent = match.groups()
-            if delim and delim in user_agent:
-                user_agent = user_agent.split(delim, 1)[0]
-            break
-
+    match = re.search(r"^.*User-Agent: (.+)$", output, re.MULTILINE)
+    user_agent = match.groups()[0] if match else ""
     new_values = [t.split("/", 1) for t in user_agent.split(" ") if "/" in t]
     new_values = {k: v for k, v in new_values if k in ALL_FIELDS}
     header = " ".join(f"{k}/{v}" for k, v in new_values.items())
@@ -64,6 +62,8 @@ def verify_user_agent(output, expected, envname=None, marker=None):
     modified = []
     duplicated = []
     for k, v in new_values.items():
+        if k == "o":
+            v = "/".join(sorted(set(v.split("/"))))
         if k == "s":
             if new_values["s"] in all_session_tokens:
                 status.append("SESSION")
