@@ -28,10 +28,10 @@ def get_test_envs():
 
 
 other_tokens = {"aau": aau_version, "aid": aid_version}
-mtoken = tokens.machine_token()
+mtoken = tokens.machine_tokens()
 if mtoken:
     other_tokens["m"] = mtoken
-otoken = tokens.organization_token()
+otoken = tokens.organization_tokens()
 if otoken:
     other_tokens["o"] = otoken
 all_session_tokens = set()
@@ -47,9 +47,14 @@ def verify_user_agent(output, expected, envname=None, marker=None):
 
     match = re.search(r"^.*User-Agent: (.+)$", output, re.MULTILINE)
     user_agent = match.groups()[0] if match else ""
-    new_values = [t.split("/", 1) for t in user_agent.split(" ") if "/" in t]
-    new_values = {k: v for k, v in new_values if k in ALL_FIELDS}
-    header = " ".join(f"{k}/{v}" for k, v in new_values.items())
+    all_tokens = [t.split("/", 1) for t in user_agent.split(" ") if "/" in t]
+    new_values = {}
+    header = []
+    for k, v in all_tokens:
+        if k in ALL_FIELDS:
+            new_values.setdefault(k, []).append(v)
+            header.append(f"{k}/{v}")
+    header = " ".join(header)
 
     # Confirm that all of the expected tokens are present
     status = []
@@ -60,14 +65,18 @@ def verify_user_agent(output, expected, envname=None, marker=None):
     if extras:
         status.append(f"{','.join(extras)} EXTRA")
     modified = []
+    repeated = []
     duplicated = []
     for k, v in new_values.items():
-        if k == "o":
-            v = "/".join(sorted(set(v.split("/"))))
+        if k not in "om":
+            if len(v) > 1:
+                repeated.append(k)
+                continue
+            v = v[0]
         if k == "s":
-            if new_values["s"] in all_session_tokens:
+            if v in all_session_tokens:
                 status.append("SESSION")
-            all_session_tokens.add(new_values["s"])
+            all_session_tokens.add(v)
             continue
         if k == "e":
             k = "e/" + (envname or "base")
@@ -76,6 +85,8 @@ def verify_user_agent(output, expected, envname=None, marker=None):
             all_environments.add(v)
         if other_tokens.setdefault(k, v) != v:
             modified.append(k)
+    if repeated:
+        status.append(f"REPEATED: {','.join(repeated)}")
     if duplicated:
         status.append(f"DUPLICATED: {','.join(duplicated)}")
     if modified:

@@ -134,16 +134,18 @@ def client_token_string():
         elif code in "nN":
             value = get_environment_name(pfx, hash=code == "N", pepper=pepper)
         elif code == "o":
-            value = tokens.organization_token() or org
-            if value and org and org not in value:
-                value = "/".join(set(value.split("/") + org.split("/")))
+            value = tokens.organization_tokens()
+            if org and org not in value:
+                value.append(org)
         elif code == "m":
-            value = tokens.machine_token()
+            value = tokens.machine_tokens()
         else:
             _debug("Unexpected client token code: %s", code)
             value = None
         if value:
-            parts.append(code + "/" + value)
+            if not isinstance(value, list):
+                value = (value,)
+            parts.extend(code + "/" + v for v in value)
     result = " ".join(parts)
     _debug("Full client token: %s", result)
     return result

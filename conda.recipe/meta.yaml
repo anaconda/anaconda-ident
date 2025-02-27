@@ -25,7 +25,7 @@ requirements:
   run:
     - python>=3.6
     - conda>=23.7.1
-    - anaconda-anon-usage>=0.6,<1
+    - anaconda-anon-usage>=0.6.1,<1
   run_constrained:
     - anaconda_client >=1.12.2
 

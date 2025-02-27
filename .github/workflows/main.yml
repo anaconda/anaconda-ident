@@ -18,6 +18,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
+# https://github.com/conda-incubator/setup-miniconda#use-a-default-shell
+defaults:
+  run:
+    shell: bash -el {0}
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -26,16 +31,21 @@ jobs:
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       with:
         fetch-depth: 0
+    - name: Setup Miniconda
+      uses: conda-incubator/setup-miniconda@505e6394dae86d6a5c7fbb6e3fb8938e3e863830 # v3.1.1
+      with:
+        miniconda-version: 'latest'
+        auto-activate-base: true
+        activate-environment: ""
+        channels: defaults
     - name: Build the package
       run: |
-        source $CONDA/etc/profile.d/conda.sh
-        conda activate base
+        conda config --set quiet true
         conda config --prepend channels defaults
-        conda config --append channels ctools
-        conda install conda conda-build conda-index
+        conda install conda-build
         conda build conda.recipe --no-test
         aid_version=$(conda search local::anaconda-ident | grep ^anaconda-ident | awk '{print $2}' | tail -1)
-        conda install -c local anaconda-ident=$aid_version
+        conda install local::anaconda-ident=$aid_version
         bash tests/test_keymgr.sh --build-only
         mv $CONDA/conda-bld .
     - name: Upload build artifacts
@@ -53,21 +63,21 @@ jobs:
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       with:
         fetch-depth: 0
+    - name: Setup Miniconda
+      uses: conda-incubator/setup-miniconda@505e6394dae86d6a5c7fbb6e3fb8938e3e863830 # v3.1.1
+      with:
+        miniconda-version: 'latest'
+        auto-activate-base: true
+        activate-environment: ""
+        channels: defaults
     - name: Build the package
-      shell: bash
       run: |
-        source $CONDA/etc/profile.d/conda.sh
         conda config --prepend channels defaults
-        conda config --append channels ctools
         conda config --append channels mcg
-        conda activate base
-        conda install conda conda-build
+        conda install conda-build
         conda build conda.recipe
   tests:
     needs: build
-    defaults:
-      run:
-        shell: bash -el {0}
     strategy:
       fail-fast: false
       matrix:
@@ -93,27 +103,33 @@ jobs:
         miniconda-version: 'latest'
         auto-activate-base: true
         activate-environment: ""
-        conda-solver: classic
-        channels: defaults,ctools,mcg
-    - name: Run local tests
+        channels: defaults
+    - name: Create test environments and installer
       run: |
         mv conda-bld $CONDA/
-        source $CONDA/etc/profile.d/conda.sh
+        conda config --set quiet true
+        conda config --prepend channels defaults
+        conda install constructor conda-build
         aid_version=$(conda search local::anaconda-ident | awk '{print $2}' | tail -1)
-        conda create -p ./testenv -c local anaconda-ident=$aid_version conda=${{ matrix.cversion }} proxyspy
-        source ./testenv/etc/profile.d/conda.sh
-        conda activate base
-        conda create -n testchild1 --yes
-        conda create -n testchild2 --yes
-        python tests/test_config.py
-    - name: Build the test environment and an installer
-      env:
-        TEST_REPO_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+        conda create -p ./testenv conda=${{ matrix.cversion }} local::anaconda-ident=$aid_version mcg::proxyspy
+        mkdir -p ./testenv/envs
+        conda create -p ./testenv/envs/testchild1 --yes
+        conda create -p ./testenv/envs/testchild2 --yes
+        [ -n "$CONDA_PREFIX" ] || CONDA_PREFIX=$CONDA
+        bash tests/test_installer.sh ${{ secrets.ANACONDA_TOKEN }} $aid_version ${{ matrix.cversion }}
+        if [[ ${{ matrix.cversion }} = 23.7.1 || ${{ matrix.cversion }} = 23.9.0 ]]; then
+          conda config --set solver classic
+        fi
+    - name: Run basic tests
       run: |
-        source $CONDA/etc/profile.d/conda.sh
-        conda install constructor conda-index
-        aid_version=$(conda search local::anaconda-ident | grep ^anaconda-ident | awk '{print $2}' | tail -1)
-        CONDA_PREFIX=$CONDA bash tests/test_installer.sh $TEST_REPO_TOKEN $aid_version ${{ matrix.cversion }}
+        conda deactivate
+        source testenv/etc/profile.d/conda.sh
+        conda activate base
+        export ANACONDA_IDENT_DEBUG=1 ANACONDA_ANON_USAGE_DEBUG=1
+        export ANACONDA_IDENT_RAISE=1 ANACONDA_ANON_USAGE_RAISE=1
+        CONDA_ANACONDA_IDENT=full conda info
+        cd tests
+        python test_config.py
     - name: Run the installer (Windows)
       if: matrix.os == 'windows-latest'
       shell: cmd
@@ -122,11 +138,9 @@ jobs:
       if: matrix.os != 'windows-latest'
       run: bash AIDTest*.sh -b -p ~/aidtest -k
     - name: Test the installed environment
-      env:
-        TEST_REPO_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
-        ANACONDA_IDENT_DEBUG: "1"
-        ANACONDA_IDENT_RAISE: "1"
-      run: bash tests/test_environment.sh ~/aidtest "$TEST_REPO_TOKEN"
+      run: |
+        export ANACONDA_IDENT_DEBUG=1 ANACONDA_IDENT_RAISE=1
+        bash tests/test_environment.sh ~/aidtest ${{ secrets.ANACONDA_TOKEN }}
   upload:
     needs: [tests, build-win]
     runs-on: ubuntu-latest
@@ -136,15 +150,18 @@ jobs:
       with:
         name: conda-bld
         path: ./conda-bld
+    - name: Setup Miniconda
+      uses: conda-incubator/setup-miniconda@505e6394dae86d6a5c7fbb6e3fb8938e3e863830 # v3.1.1
+      with:
+        miniconda-version: 'latest'
+        auto-activate-base: true
+        activate-environment: ""
+        channels: defaults
     - name: Upload to anaconda.org
       if: github.event_name == 'push'
-      env:
-        ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
-        GITHUB_REF: ${{ github.ref }}
       run: |
-        source $CONDA/bin/activate
         conda install anaconda-client
-        [[ "$GITHUB_REF" =~ ^refs/tags/ ]] || export LABEL="--label dev"
+        [[ ${{ github.ref }} =~ ^refs/tags/ ]] || export LABEL="--label dev"
         # Remove the macos build, use the unix noarch instead
         rm -rf conda-bld/osx-64 || :
-        anaconda --verbose --token $ANACONDA_TOKEN upload --user mcg $LABEL conda-bld/*/*.tar.bz2 --force
+        anaconda --verbose --token ${{ secrets.ANACONDA_TOKEN }} upload --user mcg $LABEL conda-bld/*/*.tar.bz2 --force

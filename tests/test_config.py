@@ -161,10 +161,13 @@ for env in envs:
 
 nfailed = 0
 
-local_org = other_tokens.pop("o", None)
-base_fields = "csem" if "m" in other_tokens else "cse"
+local_org = list(other_tokens.get("o") or ())
+local_mch = list(other_tokens.get("m") or ())
+base_fields = "cse"
 if local_org:
     base_fields += "o"
+if local_mch:
+    base_fields += "m"
 ofile = join(context.default_prefix, "org_token")
 otoken = _random_token()
 
@@ -182,12 +185,15 @@ for aau_state in (True, False):
         elif exists(ofile):
             os.unlink(ofile)
         org = param.split(":", 1)[-1] if ":" in param else ""
-        org = (
-            ([org] if org else [])
-            + ([org2] if org2 else [])
-            + ([local_org] if local_org else [])
-        )
-        other_tokens["o"] = "/".join(sorted(set(org)))
+        this_org = list(local_org)
+        if org2 and org2 not in this_org:
+            this_org.append(org2)
+        if org and org not in this_org:
+            this_org.append(org)
+        if this_org:
+            other_tokens["o"] = this_org
+        elif "o" in other_tokens:
+            del other_tokens["o"]
         os.environ["CONDA_ANACONDA_IDENT"] = param
         test_fields = orig_fields = base_fields + test_fields
         test_fields = "".join(dict.fromkeys(test_fields.replace("O", "o")))
