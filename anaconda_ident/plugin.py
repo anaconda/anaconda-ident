@@ -5,7 +5,7 @@ def pre_command_patcher(command):
     try:
         from . import patch  # noqa
 
-        patch.main()
+        patch.main(command)
     except Exception as exc:  # pragma: nocover
         print("Error loading anaconda-ident:", exc)
 
@@ -23,5 +23,6 @@ def conda_pre_commands():
             "uninstall",
             "env_create",
             "search",
+            "activate",
         },  # which else?
     )

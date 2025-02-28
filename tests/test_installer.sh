@@ -6,9 +6,10 @@ repo_token=$1; shift
 aid_version=$1; shift
 c_version=$1; shift
 
-CONDA_PREFIX=$(cd "$CONDA_PREFIX" && pwd)
+# CONDA_PREFIX=$(cd "$CONDA_PREFIX" && pwd)
 # shellcheck disable=SC1090
-source "$CONDA_PREFIX"/*/activate
+# source "$CONDA_PREFIX"/etc/profile.d/conda.sh
+# conda activate base
 # Needed to convert windows path to unix
 CONDA_PREFIX=$(cd "$CONDA_PREFIX" && pwd)
 
