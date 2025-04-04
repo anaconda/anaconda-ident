@@ -146,7 +146,7 @@ All of the tokens produced by `anaconda-ident` take the form
 - `s`: session token
 - `e`: environment token
 - `u`: username, as determined by the
-   [`getpass.getpass`](https://docs.python.org/3/library/getpass.html#getpass.getuser) method.
+   [`getpass.getuser`](https://docs.python.org/3/library/getpass.html#getpass.getuser) method.
 - `h`: hostname, as determined by the
    [`platform.node`](https://docs.python.org/3/library/platform.html#platform.node) method.
 - `n`: environment name. This is the name of the environment
