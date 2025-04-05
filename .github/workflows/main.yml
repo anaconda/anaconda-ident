@@ -42,10 +42,10 @@ jobs:
       run: |
         conda config --set quiet true
         conda config --prepend channels defaults
-        conda install conda-build
+        conda install conda-build conda-forge::proxyspy
         conda build conda.recipe --no-test
-        aid_version=$(conda search local::anaconda-ident | grep ^anaconda-ident | awk '{print $2}' | tail -1)
-        conda install local::anaconda-ident=$aid_version
+    - name: Test key manager
+      run: |
         bash tests/test_keymgr.sh
         mv $CONDA/conda-bld .
     - name: Upload build artifacts

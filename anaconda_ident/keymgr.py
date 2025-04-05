@@ -137,8 +137,12 @@ def parse_argv():
             if not isdir(p1):
                 raise argparse.ArgumentError("Not a directory: %s" % p1)
         else:
-            p2 = realpath(os.getcwd())
-            if commonpath((p1, p2)) != p1:
+            p2 = commonpath([realpath(os.getcwd())])
+            try:
+                is_sub = commonpath([p1, p2]) == p2
+            except Exception:
+                is_sub = False
+            if not is_sub:
                 raise argparse.ArgumentError("Directory does not exist: %s" % p1)
     if args.pepper and args.config_string.count(":") >= 2:
         parts = args.config_string.split(":", 2)
@@ -252,7 +256,7 @@ def build_tarfile(dname, args, config_dict):
         INDEX_JSON["build"] = build_string
         INDEX_JSON["timestamp"] = timestamp
         if not old_file:
-            INDEX_JSON["depends"][0] += f" >={__version__}"
+            INDEX_JSON["depends"][0] += " >=" + __version__
         _add(tf, "info/index.json", INDEX_JSON, v)
         _add(tf, "info/link.json", LINK_JSON, v)
         PATHS_JSON["paths"][0]["_path"] = FNAME
@@ -288,9 +292,10 @@ def build_config_dict(args):
         cstr = cstr + ":" * (2 - cstr.count(":")) + pepper
     result["anaconda_ident"] = cstr
     result["anaconda_anon_usage"] = True
+    result["aggressive_update_packages"] = ["anaconda_anon_usage", "anaconda_ident"]
     if verbose:
-        print("anaconda_ident:", result["anaconda_ident"])
-        print("anaconda_anon_usage: True")
+        for k, v in result.items():
+            print(f"{k}: {v}")
     if args.default_channel:
         nchan = []
         for c1 in args.default_channel:
@@ -338,6 +343,9 @@ def build_config_dict(args):
         with open(args.other_settings) as fp:
             data = YAML(typ="safe", pure=True).load(fp)
         result.update(data)
+        if verbose:
+            for k, v in data.items():
+                print(f"{k}: {v}")
     return result
 
 
