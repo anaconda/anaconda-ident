@@ -6,7 +6,7 @@ import json
 import os
 import sys
 from datetime import datetime
-from os.path import basename, dirname
+from os.path import basename, dirname, exists, isdir, commonpath, realpath
 from tarfile import TarInfo
 from tarfile import open as tf_open
 
@@ -74,7 +74,7 @@ def parse_argv():
     )
     p.add_argument(
         "--directory",
-        default=".",
+        default=None,
         help="The directory in which to create the package. The default "
         "is the current directory.",
     )
@@ -130,6 +130,15 @@ def parse_argv():
         print("No arguments supplied... exiting.")
         sys.exit(-1)
     args = p.parse_args()
+    if args.directory:
+        p1 = realpath(args.directory)
+        if exists(p1):
+            if not isdir(p1):
+                raise argparse.ArgumentError("Not a directory: %s" % p1)
+        else:
+            p2 = realpath(os.getcwd())
+            if commonpath((p1, p2)) != p1:
+                raise argparse.ArgumentError("Directory does not exist: %s" % p1)
     if args.pepper and args.config_string.count(":") >= 2:
         parts = args.config_string.split(":", 2)
         if parts[2]:
@@ -214,7 +223,8 @@ def build_tarfile(dname, args, config_dict):
     h.update(config_data)
     config_hash = h.hexdigest()
     fname = f"{name}-{version}-{build_string}.tar.bz2"
-    fpath = os.path.join(dname or ".", fname)
+    if dname:
+        fpath = os.path.join(dname, fname)
     verbose = args.verbose or args.dry_run
     if verbose:
         msg = "Building {}{}".format(fname, " (dry_run)" if args.dry_run else "")
@@ -256,6 +266,8 @@ def build_tarfile(dname, args, config_dict):
     if args.dry_run:
         add_all(None)
     else:
+        if dname:
+            os.makedirs(dname, exist_ok=True)
         with tf_open(fpath, "w:bz2") as tf:
             add_all(tf)
     return fname
