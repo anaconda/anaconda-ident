@@ -157,11 +157,11 @@ jobs:
         auto-activate-base: true
         activate-environment: ""
         channels: defaults
+    - name: List packages
+      run: find conda-bld
     - name: Upload to anaconda.org
       if: github.event_name == 'push'
       run: |
         conda install anaconda-client
         [[ ${{ github.ref }} =~ ^refs/tags/ ]] || export LABEL="--label dev"
-        # Remove the macos build, use the unix noarch instead
-        rm -rf conda-bld/osx-64 || :
-        anaconda --verbose --token ${{ secrets.ANACONDA_TOKEN }} upload --user mcg $LABEL conda-bld/*/*.tar.bz2 --force
+        anaconda --verbose --token ${{ secrets.ANACONDA_TOKEN }} upload --user ctools $LABEL conda-bld/*/*.conda --force
