@@ -46,7 +46,7 @@ jobs:
         conda build conda.recipe --no-test
         aid_version=$(conda search local::anaconda-ident | grep ^anaconda-ident | awk '{print $2}' | tail -1)
         conda install local::anaconda-ident=$aid_version
-        bash tests/test_keymgr.sh --build-only
+        bash tests/test_keymgr.sh
         mv $CONDA/conda-bld .
     - name: Upload build artifacts
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

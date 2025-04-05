@@ -112,6 +112,16 @@ grep '|' "$SCRIPTDIR"/config_tests.txt | while IFS="|" read -r cstr def cha rtk 
     fi
     echo "--------"
 
+    echo "Verifying heartbeat URL"
+    cstr_cfg=$(echo "$all_config" | grep -E '^anaconda_heartbeat:')
+    echo "$cstr_cfg"
+    if [[ "$cstr_cfg" != "anaconda_heartbeat: ${cha}/main/"* ]]; then
+        echo "EXPECTED: anaconda_heartbeat: ${cha}/main/..."
+        echo "ERROR: heartbeat string not set correctly"
+        exit 1
+    fi
+    echo "--------"
+
     echo "Verifying additional settings"
     info_test=$(echo "$all_config" | grep -E '^(auto_update_conda|notify_outdated_conda):')
     echo "$info_test"
