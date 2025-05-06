@@ -42,7 +42,7 @@ jobs:
       run: |
         conda config --set quiet true
         conda config --prepend channels defaults
-        conda install conda-build conda-forge::proxyspy
+        conda install conda-forge::conda-build conda-forge::proxyspy
         conda build conda.recipe --no-test
     - name: Test key manager
       run: |
@@ -74,7 +74,7 @@ jobs:
       run: |
         conda config --prepend channels defaults
         conda config --append channels mcg
-        conda install conda-build
+        conda install conda-forge::conda-build
         conda build conda.recipe
   tests:
     needs: build
@@ -109,7 +109,7 @@ jobs:
         mv conda-bld $CONDA/
         conda config --set quiet true
         conda config --prepend channels defaults
-        conda install constructor conda-build
+        conda install constructor conda-forge::conda-build
         aid_version=$(conda search local::anaconda-ident | awk '{print $2}' | tail -1)
         conda create -p ./testenv conda=${{ matrix.cversion }} local::anaconda-ident=$aid_version mcg::proxyspy
         mkdir -p ./testenv/envs
