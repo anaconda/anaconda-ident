@@ -42,11 +42,11 @@ jobs:
       run: |
         conda config --set quiet true
         conda config --prepend channels defaults
-        conda install conda-build
+        conda install conda-build conda-forge::proxyspy
         conda build conda.recipe --no-test
-        aid_version=$(conda search local::anaconda-ident | grep ^anaconda-ident | awk '{print $2}' | tail -1)
-        conda install local::anaconda-ident=$aid_version
-        bash tests/test_keymgr.sh --build-only
+    - name: Test key manager
+      run: |
+        bash tests/test_keymgr.sh
         mv $CONDA/conda-bld .
     - name: Upload build artifacts
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -157,11 +157,11 @@ jobs:
         auto-activate-base: true
         activate-environment: ""
         channels: defaults
+    - name: List packages
+      run: find conda-bld
     - name: Upload to anaconda.org
       if: github.event_name == 'push'
       run: |
         conda install anaconda-client
         [[ ${{ github.ref }} =~ ^refs/tags/ ]] || export LABEL="--label dev"
-        # Remove the macos build, use the unix noarch instead
-        rm -rf conda-bld/osx-64 || :
-        anaconda --verbose --token ${{ secrets.ANACONDA_TOKEN }} upload --user mcg $LABEL conda-bld/*/*.tar.bz2 --force
+        anaconda --verbose --token ${{ secrets.ANACONDA_TOKEN }} upload --user ctools $LABEL conda-bld/*/*.conda --force

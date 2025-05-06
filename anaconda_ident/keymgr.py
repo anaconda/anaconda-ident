@@ -6,7 +6,7 @@ import json
 import os
 import sys
 from datetime import datetime
-from os.path import basename, dirname
+from os.path import basename, commonpath, dirname, exists, isdir, realpath
 from tarfile import TarInfo
 from tarfile import open as tf_open
 
@@ -18,6 +18,7 @@ except Exception:
 from . import __version__
 
 LINE = "-" * 16
+HEARTBEAT_PKG = "main/noarch/activate-0.0.1-0.conda"
 
 
 def parse_argv():
@@ -74,7 +75,7 @@ def parse_argv():
     )
     p.add_argument(
         "--directory",
-        default=".",
+        default=None,
         help="The directory in which to create the package. The default "
         "is the current directory.",
     )
@@ -85,9 +86,9 @@ def parse_argv():
     )
     p.add_argument(
         "--heartbeat",
-        default=False,
+        default=True,
         action=argparse.BooleanOptionalAction,
-        help="If selected, adds a heartbeat request to each environment activation. "
+        help="By default, anaconda-ident will enable activation heartbeats. "
         "This takes the form of a single HEAD request attempt to the tokenized repository "
         "with silent failure and a short timeout for negligible disruption.",
     )
@@ -130,6 +131,19 @@ def parse_argv():
         print("No arguments supplied... exiting.")
         sys.exit(-1)
     args = p.parse_args()
+    if args.directory:
+        p1 = realpath(args.directory)
+        if exists(p1):
+            if not isdir(p1):
+                raise argparse.ArgumentError("Not a directory: %s" % p1)
+        else:
+            p2 = commonpath([realpath(os.getcwd())])
+            try:
+                is_sub = commonpath([p1, p2]) == p2
+            except Exception:
+                is_sub = False
+            if not is_sub:
+                raise argparse.ArgumentError("Directory does not exist: %s" % p1)
     if args.pepper and args.config_string.count(":") >= 2:
         parts = args.config_string.split(":", 2)
         if parts[2]:
@@ -214,7 +228,8 @@ def build_tarfile(dname, args, config_dict):
     h.update(config_data)
     config_hash = h.hexdigest()
     fname = f"{name}-{version}-{build_string}.tar.bz2"
-    fpath = os.path.join(dname or ".", fname)
+    if dname:
+        fname = os.path.join(dname, fname)
     verbose = args.verbose or args.dry_run
     if verbose:
         msg = "Building {}{}".format(fname, " (dry_run)" if args.dry_run else "")
@@ -241,7 +256,7 @@ def build_tarfile(dname, args, config_dict):
         INDEX_JSON["build"] = build_string
         INDEX_JSON["timestamp"] = timestamp
         if not old_file:
-            INDEX_JSON["depends"][0] += f" >={__version__}"
+            INDEX_JSON["depends"][0] += " >=" + __version__
         _add(tf, "info/index.json", INDEX_JSON, v)
         _add(tf, "info/link.json", LINK_JSON, v)
         PATHS_JSON["paths"][0]["_path"] = FNAME
@@ -256,7 +271,9 @@ def build_tarfile(dname, args, config_dict):
     if args.dry_run:
         add_all(None)
     else:
-        with tf_open(fpath, "w:bz2") as tf:
+        if dname:
+            os.makedirs(dname, exist_ok=True)
+        with tf_open(fname, "w:bz2") as tf:
             add_all(tf)
     return fname
 
@@ -274,12 +291,11 @@ def build_config_dict(args):
         pepper = pepper.decode("ascii")
         cstr = cstr + ":" * (2 - cstr.count(":")) + pepper
     result["anaconda_ident"] = cstr
+    result["anaconda_anon_usage"] = True
+    result["aggressive_update_packages"] = ["anaconda_anon_usage", "anaconda_ident"]
     if verbose:
-        print("anaconda_ident:", result["anaconda_ident"])
-    if args.heartbeat:
-        result["anaconda_heartbeat"] = True
-    if verbose:
-        print("anaconda_heartbeat:", bool(args.heartbeat))
+        for k, v in result.items():
+            print(f"{k}: {v}")
     if args.default_channel:
         nchan = []
         for c1 in args.default_channel:
@@ -300,6 +316,15 @@ def build_config_dict(args):
             result["channel_alias"] = c
     if verbose and "channel_alias" in result:
         print("channel_alias:", result["channel_alias"])
+    if not args.heartbeat:
+        hb = False
+    elif "channel_alias" in result:
+        hb = result["channel_alias"] + "/" + HEARTBEAT_PKG
+    else:
+        hb = True
+    result["anaconda_heartbeat"] = hb
+    if verbose:
+        print("anaconda_heartbeat:", hb)
     if args.repo_token is not None:
         token = args.repo_token.strip()
         defchan = list(result.get("default_channels", []))
@@ -318,6 +343,9 @@ def build_config_dict(args):
         with open(args.other_settings) as fp:
             data = YAML(typ="safe", pure=True).load(fp)
         result.update(data)
+        if verbose:
+            for k, v in data.items():
+                print(f"{k}: {v}")
     return result
 
 
