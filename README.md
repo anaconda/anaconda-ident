@@ -22,7 +22,7 @@ name, or department. This data enables a variety of additional
 use cases, including:
 
 - Counting the number of distinct conda users for compliance purposes
-- Implementing a per-departnment chargeback mechanism
+- Implementing a per-department chargeback mechanism
 - Tracing the distribution of a package that has been flagged for
   security reasons to specific users, machines, or environments
 
@@ -88,7 +88,7 @@ This produces an output like this:
 
 ### Anonymous token design
 
-These standard three tokens are design to ensure that they do not
+These standard three tokens are designed to ensure that they do not
 reveal identifying information about the user or the host. Specifically:
 
 - The client and session tokens are generated entirely from
@@ -103,7 +103,7 @@ reveal identifying information about the user or the host. Specifically:
   [base64-encoded](https://docs.python.org/3/library/base64.html#base64.urlsafe_b64encode)
   to create the tokens themselves.
 
-In short, these tokens were design so that they cannot be used
+In short, these tokens were designed so that they cannot be used
 to recover an underlying username, hostname, or
 environment name. The underlying purpose of these tokens is
 *disaggregation*: to distinguish between different users,
