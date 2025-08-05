@@ -76,7 +76,7 @@ def parse_argv():
         default=None,
         help="Store an organization token. It is still possible to include the org "
         "token in the --config-string argument, but this provides an alternative "
-        "that may be easier to use with the default ident configuration."
+        "that may be easier to use with the default ident configuration.",
     )
     p.add_argument(
         "--name",
@@ -318,7 +318,7 @@ def build_config_dict(args):
         cparts.append(org_token)
     if pepper:
         cparts.append(pepper)
-    result["anaconda_ident"] = ':'.join(cparts)
+    result["anaconda_ident"] = ":".join(cparts)
     result["anaconda_anon_usage"] = True
     result["aggressive_update_packages"] = ["anaconda_anon_usage", "anaconda_ident"]
     if verbose:

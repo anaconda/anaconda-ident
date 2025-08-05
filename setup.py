@@ -18,7 +18,6 @@ setup(
         "console_scripts": [
             "anaconda-ident = anaconda_ident.install:main",
             "anaconda-keymgr = anaconda_ident.keymgr:main",
-            "anaconda-heartbeat = anaconda_ident.heartbeat:main",
             "anaconda-ident-hash = anaconda_ident.tokens:main",
         ],
         "conda": ["anaconda-ident-plugin = anaconda_ident.plugin"],
@@ -29,5 +28,8 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
     ],
 )
