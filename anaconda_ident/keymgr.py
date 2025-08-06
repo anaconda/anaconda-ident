@@ -260,7 +260,7 @@ def build_tarfile(dname, args, config_dict):
     build_string = (args.build_string + "_" if args.build_string else "") + str(
         build_number
     )
-    org_token = _org_token(args)
+    # org_token = _org_token(args)
     fname = f"{name}-{version}-{build_string}.tar.bz2"
     if dname:
         fname = os.path.join(dname, fname)
@@ -278,8 +278,8 @@ def build_tarfile(dname, args, config_dict):
             _add(tf, FNAME, config_dict, v, True)
         if old_file:
             _add(tf, FNAME2, config_dict, v, True)
-        if org_token:
-            _add(tf, FNAME3, org_token, v, True)
+        # if org_token:
+        #     _add(tf, FNAME3, org_token, v, True)
         _add(tf, "info/about.json", ABOUT_JSON, v)
         _add(tf, "info/files", FNAME, v)
         _add(tf, "info/no_link", "\n".join(NO_LINK), v)
