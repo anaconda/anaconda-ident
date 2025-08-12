@@ -21,6 +21,28 @@ LINE = "-" * 16
 HEARTBEAT_PKG = "main/noarch/activate-0.0.1-0.conda"
 
 
+def _org_token(args):
+    org_token = args.org_token
+    cparts = args.config_string.split(":") + [""]
+    if org_token and cparts[1] and cparts[1] != org_token:
+        raise argparse.ArgumentError("Conflicting org strings supplied")
+    return org_token or cparts[1]
+
+
+def _pepper(args):
+    pepper = args.pepper
+    cparts = args.config_string.split(":") + ["", ""]
+    if cparts and cparts[2] and cparts[2] != cparts:
+        raise argparse.ArgumentError("Conflicting pepper values supplied")
+    if cparts[2]:
+        return cparts[2]
+    if args.pepper:
+        pepper = os.urandom(16)
+        pepper = base64.b64encode(pepper).rstrip(b"=")
+        return pepper.decode("ascii")
+    return ""
+
+
 def parse_argv():
     p = argparse.ArgumentParser()
     p.add_argument(
@@ -48,6 +70,13 @@ def parse_argv():
         help="Store a token for conda authentication. To use this, a full channel "
         "URL is required. This will either be determined from the first full URL "
         "in the default_channels list; or if not present there, from channel_alias.",
+    )
+    p.add_argument(
+        "--org-token",
+        default=None,
+        help="Store an organization token. It is still possible to include the org "
+        "token in the --config-string argument, but this provides an alternative "
+        "that may be easier to use with the default ident configuration.",
     )
     p.add_argument(
         "--name",
@@ -144,16 +173,15 @@ def parse_argv():
                 is_sub = False
             if not is_sub:
                 raise argparse.ArgumentError("Directory does not exist: %s" % p1)
-    if args.pepper and args.config_string.count(":") >= 2:
-        parts = args.config_string.split(":", 2)
-        if parts[2]:
-            raise argparse.ArgumentError("Conflicting pepper values supplied")
+    _org_token(args)
+    _pepper(args)
     return args, p
 
 
 ABOUT_JSON = {"summary": "Anaconda-Ident Configuration Package"}
 FNAME = "condarc.d/anaconda_ident.yml"
 FNAME2 = "etc/anaconda_ident.yml"
+FNAME3 = "org_token"
 INDEX_JSON = {
     "arch": None,
     "build": "custom_0",
@@ -168,18 +196,18 @@ INDEX_JSON = {
     "version": "19000101",
 }
 LINK_JSON = {"noarch": {"type": "generic"}, "package_metadata_version": 1}
+PATHS_JSON_REC = {
+    "_path": "",
+    "no_link": True,
+    "path_type": "hardlink",
+    "sha256": "",
+    "size_in_bytes": 0,
+}
 PATHS_JSON = {
-    "paths": [
-        {
-            "_path": "",
-            "no_link": True,
-            "path_type": "hardlink",
-            "sha256": "",
-            "size_in_bytes": 0,
-        }
-    ],
+    "paths": [],
     "paths_version": 1,
 }
+NO_LINK = []
 
 
 def _bytes(data, yaml=False):
@@ -198,11 +226,13 @@ def _bytes(data, yaml=False):
         data = data.encode("utf-8")
     else:
         raise NotImplementedError
-    return data, len(data)
+    h = hashlib.new("sha256")
+    h.update(data)
+    return data, len(data), h.hexdigest()
 
 
-def _add(tf, fname, data, verbose):
-    data, size = _bytes(data)
+def _add(tf, fname, data, verbose, add_to_paths=False):
+    data, size, hvalue = _bytes(data)
     if verbose:
         print("%s:" % fname)
         for line in data.decode("utf-8").splitlines():
@@ -212,6 +242,13 @@ def _add(tf, fname, data, verbose):
         info = TarInfo(fname)
         info.size = size
         tf.addfile(info, io.BytesIO(data))
+    if add_to_paths:
+        prec = PATHS_JSON_REC.copy()
+        prec["_path"] = fname
+        prec["size_in_bytes"] = size
+        prec["sha256"] = hvalue
+        PATHS_JSON["paths"].append(prec)
+        NO_LINK.append(fname)
 
 
 def build_tarfile(dname, args, config_dict):
@@ -223,10 +260,7 @@ def build_tarfile(dname, args, config_dict):
     build_string = (args.build_string + "_" if args.build_string else "") + str(
         build_number
     )
-    config_data, config_size = _bytes(config_dict, yaml=True)
-    h = hashlib.new("sha256")
-    h.update(config_data)
-    config_hash = h.hexdigest()
+    # org_token = _org_token(args)
     fname = f"{name}-{version}-{build_string}.tar.bz2"
     if dname:
         fname = os.path.join(dname, fname)
@@ -240,13 +274,12 @@ def build_tarfile(dname, args, config_dict):
         v = args.verbose or args.dry_run
         new_file = not args.legacy_only
         old_file = args.legacy_only or args.compatibility
-        NO_LINK = []
         if new_file:
-            _add(tf, FNAME, config_data, v)
-            NO_LINK.append(FNAME)
+            _add(tf, FNAME, config_dict, v, True)
         if old_file:
-            _add(tf, FNAME2, config_data, v)
-            NO_LINK.append(FNAME2)
+            _add(tf, FNAME2, config_dict, v, True)
+        # if org_token:
+        #     _add(tf, FNAME3, org_token, v, True)
         _add(tf, "info/about.json", ABOUT_JSON, v)
         _add(tf, "info/files", FNAME, v)
         _add(tf, "info/no_link", "\n".join(NO_LINK), v)
@@ -259,13 +292,6 @@ def build_tarfile(dname, args, config_dict):
             INDEX_JSON["depends"][0] += " >=" + __version__
         _add(tf, "info/index.json", INDEX_JSON, v)
         _add(tf, "info/link.json", LINK_JSON, v)
-        PATHS_JSON["paths"][0]["_path"] = FNAME
-        PATHS_JSON["paths"][0]["size_in_bytes"] = config_size
-        PATHS_JSON["paths"][0]["sha256"] = config_hash
-        if old_file and new_file:
-            PATHS_JSON["paths"].append(PATHS_JSON["paths"][0].copy())
-        if old_file:
-            PATHS_JSON["paths"][-1]["_path"] = FNAME2
         _add(tf, "info/paths.json", PATHS_JSON, v)
 
     if args.dry_run:
@@ -284,13 +310,15 @@ def build_config_dict(args):
         print("Building config dictionary")
         print(LINE)
     result = {}
-    cstr = args.config_string
-    if args.pepper:
-        pepper = os.urandom(16)
-        pepper = base64.b64encode(pepper).rstrip(b"=")
-        pepper = pepper.decode("ascii")
-        cstr = cstr + ":" * (2 - cstr.count(":")) + pepper
-    result["anaconda_ident"] = cstr
+    cstr = args.config_string.split(":", 1)[0] or "default"
+    org_token = _org_token(args)
+    pepper = _pepper(args)
+    cparts = [cstr]
+    if org_token or pepper:
+        cparts.append(org_token)
+    if pepper:
+        cparts.append(pepper)
+    result["anaconda_ident"] = ":".join(cparts)
     result["anaconda_anon_usage"] = True
     result["aggressive_update_packages"] = ["anaconda_anon_usage", "anaconda_ident"]
     if verbose:

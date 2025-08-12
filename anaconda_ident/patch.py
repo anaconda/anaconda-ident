@@ -126,7 +126,7 @@ def client_token_string():
         elif code == "e":
             value = tokens.environment_token(pfx)
         elif code == "a":
-            value = tokens.anaconda_cloud_token()
+            value = tokens.anaconda_auth_token()
         elif code in "uU":
             value = get_username(hash=code == "U", pepper=pepper)
         elif code in "hH":

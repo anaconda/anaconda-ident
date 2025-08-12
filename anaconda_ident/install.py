@@ -82,11 +82,20 @@ def parse_argv():
         "channel alias setting.",
     )
     p.add_argument(
+        "--org-token",
+        default=None,
+        help="Add an organization token to the configuration. This token can also be "
+        "supplied as part of the configuration string, but this command-line argument "
+        "may in some cases be more convenient.",
+    )
+    p.add_argument(
         "--repo-token",
         default=None,
         help="Store a token for conda authentication. To use this, a full channel "
-        "URL is required. This will either be determined from the first full URL "
-        "in the default_channels list; or if not present there, from channel_alias. "
+        "URL is required. This URL can be supplied explicitly by prepending it to "
+        "the supplied token separated with a colon; e.g., <CHANNEL>:<TOKEN>. If it "
+        "is not supplied, it will be determined from the first full URL found within "
+        "existing or supplied default_channels and channel_alias values. "
         "Supply an empty string to clear the token.",
     )
     p.add_argument(
@@ -363,7 +372,7 @@ def _print_condarc(args, config, changes=False):
         elif not value:
             value = "[]"
         else:
-            value = "\n - " + "\n - ".join(value)
+            value = "\n  - " + "\n  - ".join(value)
         print(f"  default_channels: {value}")
     if not changes or args.channel_alias is not None:
         value = config.get("channel_alias")
@@ -378,7 +387,7 @@ def _print_condarc(args, config, changes=False):
             print("  repo tokens: <none>")
     if not changes or args.heartbeat is not None:
         value = bool(config.get("anaconda_heartbeat"))
-        print(f"| heartbeat: {value or '<none>'}")
+        print(f"  heartbeat: {value or '<none>'}")
 
 
 def _set_or_delete(d, k, v):
@@ -420,9 +429,14 @@ def manage_condarc(args, condarc):
 
     # config string
     changes = False
-    if args.config is not None:
-        new_token = "" if args.config == "default" else args.config
-        _set_or_delete(condarc, "anaconda_ident", new_token)
+    old_config = condarc.get("anaconda_ident") or "default"
+    new_config = old_config if args.config is None else (args.config or "default")
+    parts = new_config.split(":") + ["", ""]
+    if args.org_token is not None:
+        parts[1] = args.org_token.strip()
+    config = ":".join(parts[: (3 if parts[2] else (2 if parts[1] else 1))])
+    if config != old_config:
+        _set_or_delete(condarc, "anaconda_ident", config)
         changes = True
     # default_channels
     if args.default_channel:
@@ -440,19 +454,20 @@ def manage_condarc(args, condarc):
     # tokens
     if args.repo_token is not None:
         tokens = {}
-        if args.repo_token.strip():
-            defchan = condarc.get("default_channels", []) + [
-                condarc.get("channel_alias", "")
-            ]
+        token = args.repo_token.strip()
+        if token:
+            defchan = []
+            if token.count(":") > 1:
+                t_chan, token = token.rsplit(":", 1)
+                defchan.append(t_chan)
+            else:
+                defchan.extend(condarc.get("default_channels", []))
+                defchan.append(condarc.get("channel_alias", ""))
             defchan = [c for c in defchan if "/" in c]
             if not defchan:
                 if verbose:
                     print("------------------------")
-                error(
-                    "A repo_token value may only be supplied if accompanied\n"
-                    "by a channel_alias or default_channels value.",
-                    fatal=True,
-                )
+                error("No repo token channel was found.", fatal=True)
             defchan = "/".join(defchan[0].strip().split("/", 3)[:3]) + "/"
             tokens[defchan] = args.repo_token.strip()
         _set_or_delete(condarc, "repo_tokens", tokens)

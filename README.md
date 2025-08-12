@@ -2,33 +2,22 @@
 
 ## Simple user identification for conda
 
-The `anaconda-ident` package reconfigures [`conda`](https://docs.conda.io/)
-to deliver a configurable amount of additional telemetry data
-when requesting indices and packages from a server. This
-data is appended to the user agent string, and delivered
-to a custom `X-Anaconda-Ident` request header.
+The `anaconda-ident` package builds upon the
+[`anaconda-anon-usage`](https://github.com/anaconda/anaconda-anon-usage)
+package to enhance the telemetry data that is delivered by
+[`conda`](https://docs.conda.io/) when performing package management
+operations.
 
-In its default mode, this telemetry data is *randomly
-generated* to avoid revealing personally identifiable content.
-In this mode, use cases include:
+Unlike `anaconda-anon-usage`, which is designed to respect anonymity,
+this package can be configured to include actual *hostnames*, *usernames*,
+and *environment names*, to allow administrators to track usage more
+precisely. This information can optionally be be scrambled using a
+*one-way hash function*, obscuring the actual values in upstream logs,
+while still allowing administrators to match to known persons or machines.
 
-- Counting the number of conda clients on a network
-- Providing more accurate estimates of package popularity
-- Other statistical analyses of conda usage patterns
-
-It may also be *optionally* configured to deliver concrete
-identification information such as username, hostname, environment
-name, or department. This data enables a variety of additional
-use cases, including:
-
-- Counting the number of distinct conda users for compliance purposes
-- Implementing a per-department chargeback mechanism
-- Tracing the distribution of a package that has been flagged for
-  security reasons to specific users, machines, or environments
-
-This approach to gathering usage data is more passive and
-therefore more convenient for users than, say, requiring that
-they authenticate to the package repository.
+This plugin is _not_ shipped by default in freely available Anaconda offerings.
+Instead, it is offered as an add-on for customers who seek better track the
+usage of packages for governance and security purposes.
 
 ## Quickstart
 
@@ -39,112 +28,25 @@ To use anaconda-ident, simply install it in your base environment:
 ```
 conda install -n base anaconda-ident
 ```
-This package has no additional dependencies other than `conda`
-itself. It employs post-link and activation scripts to apply a
-small patch into the module `conda.base.context` that enables
-the telemetry insertion.
+This package has no additional dependencies other than `conda` and
+`anaconda-anon-usage`. It employs a combination of conda's plugin
+mechanism and post-link and activation scripts to modify the default
+behavior of conda.
 
-### Default behavior
+This plugin builds upon the user-agent telemetry mechanisms built
+into `anaconda-anon-usage`, embedded telemetry "tokens" into the
+standard `User-Agent` header included with every package or index
+request made by `conda`. For a full introduction to this approach,
+please consult the
+[`anaconda-anon-usage` README](https://github.com/anaconda/anaconda-anon-usage/blob/main/README.md).
 
-The easiest way to verify that it is
-engaged is by typing `conda info` and examining the `user-agent`
-line. The user-agent string will look something like this
-(split over two lines for readability):
+### Additional tokens
 
-```
-conda/22.11.1 requests/2.28.1 CPython/3.10.4 Darwin/22.2.0
-OSX/13.1 c/NIedulQP s/sQPR5moe e/Tfgp_cYz
-```
+In addition to the tokens created by the `anaconda-anon-usage` package,
+`anaconda-ident` provides the following additional options.
+Each token takes the form `X/<value>`, where `X` represents one
+of the single characters below:
 
-The first five tokens constitute the standard user-agent string
-that conda *normally* sends with HTTP requests. The last three tokens,
-however, are added by `anaconda-ident`:
-
-- A *client token* `c/NIedulQP` is generated once by the
-  conda client and saved in the `~/.conda` directory, so that
-  the same value is delivered as long as that
-  directory is maintained.
-- A *session token* `s/V-X_TsLQ` is generated afresh every time
-  `conda` is run.
-- An *environment token* `e/Tfgp_cYz` is generated uniquely for
-  each separate conda environment (`-n <name>` or `-p <prefix>`).
-
-The same tokens are shipped separately in an additional HTTP header.
-Here is an easy way to see precisely what is being shipped to the
-upstream server on Unix:
-
-```
-conda search -vvv fakepackage 2>&1 | grep -E 'X-Anaconda-Ident|User-Agent'
-```
-
-This produces an output like this:
-
-```
-> User-Agent: conda/22.11.1 requests/2.28.1 CPython/3.10.4 Darwin/22.2.0 OSX/13.1 c/NIedulQP s/sQPR5moe e/Tfgp_cYz
-> X-Anaconda-Ident: c/NIedulQP s/sQPR5moe e/Tfgp_cYz
-> User-Agent: conda/22.11.1 requests/2.28.1 CPython/3.10.4 Darwin/22.2.0 OSX/13.1 c/NIedulQP s/sQPR5moe e/Tfgp_cYz
-> X-Anaconda-Ident: c/NIedulQP s/sQPR5moe e/Tfgp_cYz
-```
-
-### Anonymous token design
-
-These standard three tokens are designed to ensure that they do not
-reveal identifying information about the user or the host. Specifically:
-
-- The client and session tokens are generated entirely from
-  6 bytes of [`os.urandom`](https://docs.python.org/3/library/os.html#os.urandom) data,.
-- The environment token is computed from a
-  [SHA1 hash](https://docs.python.org/3/library/hashlib.html#hash-algorithms)
-  of three components: 1) the full path of your environment,
-  2) your client token, and 3) an additional 42 bytes of
-  `os.urandom` salt data. The actual hash process produces
-  a 20-byte value, which is then truncated to 6 bytes.
-- The byte streams are
-  [base64-encoded](https://docs.python.org/3/library/base64.html#base64.urlsafe_b64encode)
-  to create the tokens themselves.
-
-In short, these tokens were designed so that they cannot be used
-to recover an underlying username, hostname, or
-environment name. The underlying purpose of these tokens is
-*disaggregation*: to distinguish between different users,
-sessions, and/or environments for analytics purposes. This
-works because the probability that two different
-users will produce the same tokens is vanishingly small.
-
-Additional tokens are available to be included using optional
-configuration, including some that *do* reveal more concrete identifying
-information such as username, hostname, and environment name. This
-is discussed in the Configuration section below.
-
-### Removing `anaconda-ident`
-
-In order to stop the delivery of the custom tokens entirely,
-simply uninstall the package:
-
-```
-conda remove -n base anaconda-ident --force
-```
-The `X-Anaconda-Ident` header will be removed, and the user agent
-string will be returned to normal; for instance:
-
-```
-user-agent : conda/22.11.1 requests/2.28.1 CPython/3.10.4 Darwin/22.2.0 OSX/13.1
-```
-The telemetry can also be disabled with a configuration setting;
-see below. But removing the package provides the strongest assurance.
-
-## Configuration
-
-The package supports a larger set of tokens
-
-### The token list
-
-All of the tokens produced by `anaconda-ident` take the form
-`<character>/<value>`:
-
-- `c`: client token
-- `s`: session token
-- `e`: environment token
 - `u`: username, as determined by the
    [`getpass.getuser`](https://docs.python.org/3/library/getpass.html#getpass.getuser) method.
 - `h`: hostname, as determined by the
@@ -152,43 +54,38 @@ All of the tokens produced by `anaconda-ident` take the form
 - `n`: environment name. This is the name of the environment
   directory (not the full path), or `base` for the root environment.
 - `U`, `H`, and `N`: these are _hashed_ versions of the username, hostname, and environment name (see the section "Hashed identifier tokens" below).
-- `o`: organization. This token is an arbitrary string provided
-  by the configuration itself, and can be used, for instance,
-  to specify the group the user belongs to.
 
 ### The configuration string
 
 A standard configuration string is simply a combination of one
-or more of the characters `cseuhnUHN`. To
-include an organization string, append it to this configuration
-with a leading colon `:`.
-
+or more of the characters `uhnUHN`. An organization string may also
+be included by appending it to this configuration with a leading colon `:`.
 Here are some examples:
 
-- `cse`: the default combination of client, session and environment.
 - `uh:finance`: username, hostname, and a `finance` organization.
-- `cseuhn:eng`: all the tokens, including an `eng` organization.
+- `uhn:eng`: all the tokens, including an `eng` organization.
+
+No matter what configuration is chosen, the standard set of
+`anaconda-anon-usage` tokens will be delivered as well.
 
 For convenience, a number of special keywords are also available,
 all of which can be combined with the organization string.
 
-- `none`: no tokens. By itself, this keyword effectively disables
-  the user-agent telemetry of `anaconda-ident`. If an
-  organization string is appended (e.g., `none:myorg`), it
-  will be the only token included in the user-agent.
-- `default`: equivalent to `cse`.
-- `username`: equivalent to `cseu`.
-- `hostname`: equivalent to `cseh`.
-- `userhost`: equivalent to `cseuh`.
-- `userenv`: equivalent to `cseun`.
-- `hostenv`: equivalent to `csehn`.
-- `full`: equivalent to `cseuhn`.
+- `username`: equivalent to `u`.
+- `hostname`: equivalent to `h`.
+- `userhost`: equivalent to `uh`.
+- `userenv`: equivalent to `un`.
+- `hostenv`: equivalent to `hn`.
+- `full`: equivalent to `uhn`.
 
 Here is an example set of tokens for the configuration `full:myorg`:
 
 ```
 c/NIedulQP s/SsYPna-z e/Tfgp_cYz u/mgrant h/m1mbp.local n/base o/myorg
 ```
+
+The `c`, `s`, and `e` tokens are generated by `anaconda-anon-usage`,
+while the remaining tokens are generated by `anaconda-ident`.
 
 ### Local configuration
 
@@ -231,6 +128,7 @@ anaconda-keymgr \
     --config-string <CONFIG_STRING> \
     --default-channel <REPO_URL> \
     --repo-token <REPO_TOKEN> \
+    --org-token <ORG_TOKEN>
 ```
 
 The above command will create a package called

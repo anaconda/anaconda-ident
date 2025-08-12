@@ -13,7 +13,6 @@ build:
   entry_points:
     - anaconda-ident = anaconda_ident.install:main
     - anaconda-keymgr = anaconda_ident.keymgr:main
-    - anaconda-heartbeat = anaconda_ident.heartbeat:main
     - anaconda-ident-hash = anaconda_ident.tokens:main
 
 requirements:
@@ -25,7 +24,7 @@ requirements:
   run:
     - python>=3.6
     - conda>=23.7.1
-    - anaconda-anon-usage>=0.7.0,<1
+    - anaconda-anon-usage>=0.7.2,<1
   run_constrained:
     - anaconda_client >=1.12.2
 
