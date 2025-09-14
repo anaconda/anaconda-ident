@@ -162,6 +162,7 @@ jobs:
     - name: Upload to anaconda.org
       if: github.event_name == 'push'
       run: |
-        conda install 'anaconda-client>1.13'
+        # https://github.com/anaconda/anaconda-client/pull/795
+        conda install 'anaconda-client>=1.13.1'
         [[ ${{ github.ref }} =~ ^refs/tags/ ]] || export LABEL="--label dev"
         anaconda --verbose --token ${{ secrets.ANACONDA_TOKEN }} upload --user ctools $LABEL conda-bld/*/*.conda --force
