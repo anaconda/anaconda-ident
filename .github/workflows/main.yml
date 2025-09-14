@@ -87,7 +87,7 @@ jobs:
         # 23.7.0 : first plugin-based variant, but conda info --envs --json is broken
         # 23.9.0 : last variant with the classic default solver
         # 23.10.0 : first variant with the libmamba default solver
-        cversion: ['23.7.1', '23.9.0', '23.10.0', '24.11.3', '25.5.1']
+        cversion: ['23.7.1', '23.9.0', '23.10.0', '24.11.3', '25.7.0']
     runs-on: ${{ matrix.os }}
     steps:
     - name: Retrieve the source code
@@ -162,6 +162,6 @@ jobs:
     - name: Upload to anaconda.org
       if: github.event_name == 'push'
       run: |
-        conda install anaconda-client
+        conda install 'anaconda-client>1.13'
         [[ ${{ github.ref }} =~ ^refs/tags/ ]] || export LABEL="--label dev"
         anaconda --verbose --token ${{ secrets.ANACONDA_TOKEN }} upload --user ctools $LABEL conda-bld/*/*.conda --force
