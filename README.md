@@ -11,12 +11,12 @@ operations.
 Unlike `anaconda-anon-usage`, which is designed to respect anonymity,
 this package can be configured to include actual *hostnames*, *usernames*,
 and *environment names*, to allow administrators to track usage more
-precisely. This information can optionally be be scrambled using a
+precisely. This information can optionally be scrambled using a
 *one-way hash function*, obscuring the actual values in upstream logs,
 while still allowing administrators to match to known persons or machines.
 
 This plugin is _not_ shipped by default in freely available Anaconda offerings.
-Instead, it is offered as an add-on for customers who seek better track the
+Instead, it is offered as an add-on for customers who seek to better track the
 usage of packages for governance and security purposes.
 
 ## Quickstart
@@ -34,7 +34,7 @@ mechanism and post-link and activation scripts to modify the default
 behavior of conda.
 
 This plugin builds upon the user-agent telemetry mechanisms built
-into `anaconda-anon-usage`, embedded telemetry "tokens" into the
+into `anaconda-anon-usage`, embedding telemetry "tokens" into the
 standard `User-Agent` header included with every package or index
 request made by `conda`. For a full introduction to this approach,
 please consult the
@@ -53,6 +53,8 @@ of the single characters below:
    [`platform.node`](https://docs.python.org/3/library/platform.html#platform.node) method.
 - `n`: environment name. This is the name of the environment
   directory (not the full path), or `base` for the root environment.
+- `o`: organization token. This is a custom identifier for your organization,
+  specified in the configuration string.
 - `U`, `H`, and `N`: these are _hashed_ versions of the username, hostname, and environment name (see the section "Hashed identifier tokens" below).
 
 ### The configuration string
@@ -69,7 +71,7 @@ No matter what configuration is chosen, the standard set of
 `anaconda-anon-usage` tokens will be delivered as well.
 
 For convenience, a number of special keywords are also available,
-all of which can be combined with the organization string.
+all of which can be combined with the organization string:
 
 - `username`: equivalent to `u`.
 - `hostname`: equivalent to `h`.
@@ -97,10 +99,10 @@ For instance, you can use the `conda config` command:
 conda config --set anaconda_ident userhost:my_org
 ```
 You can manually edit your `~/.condarc` configuration file and
-insert a line; e.g.
+insert a line; e.g.:
 
 ```
-anaconda_ident: userhost:my_org.
+anaconda_ident: userhost:my_org
 ```
 
 ### Configuration package creation
@@ -156,9 +158,11 @@ value in the config string. This data is 16 bytes of random
 data, and can be base64-encoded and appended to the end of
 the config string following a second colon; for instance:
 
+```
 anaconda_ident: userhost:my_org:ugQzhEX5Fs45/iOonikPXA
+```
 
-For simplicy, a `--pepper` option has been added to the
+For simplicity, a `--pepper` option has been added to the
 `anaconda-keymgr` command to randomly generate a pepper value.
 To reuse an existing pepper value, simply supply it as part
 of the `--config-string` argument.
@@ -188,7 +192,7 @@ We can offer the following custom builds:
 - A set of `anaconda-ident` packages containing your
   preferred configuration.
 - A set of `conda` packages with metadata patched to
-  include a `anaconda-ident` dependency.
+  include an `anaconda-ident` dependency.
 - Builds of the latest Miniconda and Anaconda installers
   with `anaconda-ident` added to them.
 
