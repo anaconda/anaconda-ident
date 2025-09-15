@@ -6,7 +6,7 @@ The `anaconda-ident` package builds upon the
 [`anaconda-anon-usage`](https://github.com/anaconda/anaconda-anon-usage)
 package to enhance the telemetry data that is delivered by
 [`conda`](https://docs.conda.io/) when performing package management
-operations.
+operations and, optionally, when activating conda environments.
 
 Unlike `anaconda-anon-usage`, which is designed to respect anonymity,
 this package can be configured to include actual *hostnames*, *usernames*,
@@ -36,9 +36,11 @@ behavior of conda.
 This plugin builds upon the user-agent telemetry mechanisms built
 into `anaconda-anon-usage`, embedding telemetry "tokens" into the
 standard `User-Agent` header included with every package or index
-request made by `conda`. For a full introduction to this approach,
-please consult the
-[`anaconda-anon-usage` README](https://github.com/anaconda/anaconda-anon-usage/blob/main/README.md).
+request made by `conda`. Additionally, if activation heartbeats are
+enabled in `anaconda-anon-usage`, these tokens will also be delivered
+when conda environments are activated. For a full introduction to this
+approach, including information about activation heartbeats, please
+consult the [`anaconda-anon-usage` README](https://github.com/anaconda/anaconda-anon-usage/blob/main/README.md).
 
 ### Additional tokens
 
@@ -105,6 +107,23 @@ insert a line; e.g.:
 anaconda_ident: userhost:my_org
 ```
 
+### Activation heartbeats
+
+By default, `anaconda-ident` tokens are only sent when conda performs package
+operations (install, search, etc.). However, `anaconda-anon-usage` supports an
+opt-in "activation heartbeat" feature that sends telemetry (including all
+`anaconda-ident` tokens) when a conda environment is activated.
+
+To enable activation heartbeats, add this to your system `condarc` file:
+
+```
+anaconda_heartbeat: true
+```
+
+When enabled, a lightweight HEAD request is sent to the upstream repository
+each time you run `conda activate`, providing visibility into environment
+usage patterns beyond just package installations.
+
 ### Configuration package creation
 
 A key feature of the `anaconda_ident` package is the ability
@@ -140,6 +159,10 @@ The above command will create a package called
 If this package is installed into a root conda environment,
 it will automatically activate `anaconda-ident` and configure
 it according to the settings provided.
+
+Note: By default, `anaconda-keymgr` enables activation heartbeats.
+Use `--no-heartbeat` if you want to disable this feature in the
+generated configuration package.
 
 ### Advanced: hashed identifier tokens
 
