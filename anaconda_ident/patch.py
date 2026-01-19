@@ -3,7 +3,7 @@ import getpass
 import platform
 import sys
 from os import environ
-from os.path import basename
+from os.path import basename, abspath, sep
 
 from anaconda_anon_usage import tokens
 from anaconda_anon_usage import utils as aau_utils
@@ -58,10 +58,13 @@ def get_environment_name(prefix=None, hash=False, pepper=None):
     prefix = prefix or get_environment_prefix()
     if not prefix:
         return None
-    value = basename(env_name(prefix))
+    value = env_name(prefix)
     if hash:
-        value = hash_string("environment", value, pepper)
-    return value
+        if sep in value:
+            value = abspath(value)
+        return hash_string("environment", value, pepper)
+    else:
+        return basename(value)
 
 
 def get_username(hash=False, pepper=None):
