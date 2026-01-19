@@ -3,7 +3,7 @@ import getpass
 import platform
 import sys
 from os import environ
-from os.path import basename, abspath, sep
+from os.path import abspath, basename, sep
 
 from anaconda_anon_usage import tokens
 from anaconda_anon_usage import utils as aau_utils
