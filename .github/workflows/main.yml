@@ -32,7 +32,7 @@ jobs:
       with:
         fetch-depth: 0
     - name: Setup Miniconda
-      uses: conda-incubator/setup-miniconda@835234971496cad1653abb28a638a281cf32541f # v3.2.0
+      uses: conda-incubator/setup-miniconda@fc2d68f6413eb2d87b895e92f8584b5b94a10167 # v3.3.0
       with:
         miniconda-version: 'latest'
         auto-activate-base: true
@@ -64,7 +64,7 @@ jobs:
       with:
         fetch-depth: 0
     - name: Setup Miniconda
-      uses: conda-incubator/setup-miniconda@835234971496cad1653abb28a638a281cf32541f # v3.2.0
+      uses: conda-incubator/setup-miniconda@fc2d68f6413eb2d87b895e92f8584b5b94a10167 # v3.3.0
       with:
         miniconda-version: 'latest'
         auto-activate-base: true
@@ -96,7 +96,7 @@ jobs:
         name: conda-bld
         path: ./conda-bld
     - name: Setup Miniconda
-      uses: conda-incubator/setup-miniconda@835234971496cad1653abb28a638a281cf32541f # v3.2.0
+      uses: conda-incubator/setup-miniconda@fc2d68f6413eb2d87b895e92f8584b5b94a10167 # v3.3.0
       with:
         miniconda-version: 'latest'
         auto-activate-base: true
@@ -149,7 +149,7 @@ jobs:
         name: conda-bld
         path: ./conda-bld
     - name: Setup Miniconda
-      uses: conda-incubator/setup-miniconda@835234971496cad1653abb28a638a281cf32541f # v3.2.0
+      uses: conda-incubator/setup-miniconda@fc2d68f6413eb2d87b895e92f8584b5b94a10167 # v3.3.0
       with:
         miniconda-version: 'latest'
         auto-activate-base: true
