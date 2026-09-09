@@ -12,7 +12,7 @@ def pre_command_patcher(command):
 
 @plugins.hookimpl
 def conda_pre_commands():
-    yield plugins.CondaPreCommand(
+    yield plugins.types.CondaPreCommand(
         name="anaconda-ident",
         action=pre_command_patcher,
         run_for={
