@@ -222,3 +222,8 @@ We can offer the following custom builds:
 By hosting these builds in your internal package repository
 and software store, you can greatly simplify the distribution
 of this tool throughout your organization.
+
+## Maintainer information
+
+See [Maintainer information](MAINTAINERS.md) for the versioning scheme,
+vulnerability reporting, and coordinated disclosure policy.
