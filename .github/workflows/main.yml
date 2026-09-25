@@ -164,3 +164,9 @@ jobs:
         conda install 'anaconda-client>=1.13.1'
         [[ ${{ github.ref }} =~ ^refs/tags/ ]] || export LABEL="--label dev"
         anaconda --verbose --token ${{ secrets.ANACONDA_TOKEN }} upload --user ctools $LABEL conda-bld/*/*.conda --force
+  tests-pass:
+    name: tests-pass
+    needs: [tests]
+    runs-on: ubuntu-latest
+    steps:
+    - run: echo "all tests succeeded"
