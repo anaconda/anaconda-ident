@@ -223,7 +223,16 @@ By hosting these builds in your internal package repository
 and software store, you can greatly simplify the distribution
 of this tool throughout your organization.
 
-## Maintainer information
+## Versioning
 
-See [Maintainer information](MAINTAINERS.md) for the versioning scheme,
-vulnerability reporting, and coordinated disclosure policy.
+`anaconda-ident` follows the
+[Python versioning scheme](https://packaging.python.org/en/latest/specifications/version-specifiers/#version-scheme).
+Current final releases use increasing `MAJOR.MINOR.PATCH` versions, for example `0.6.1`.
+Git release tags have no `v` prefix.
+Versioneer derives the package version from Git tags using its default
+`pep440` style, as configured in [`setup.cfg`](setup.cfg).
+
+## Vulnerability reporting and coordinated disclosure
+
+For vulnerability reporting instructions and the coordinated disclosure policy,
+see [Anaconda's `security.txt`](https://www.anaconda.com/.well-known/security.txt).
