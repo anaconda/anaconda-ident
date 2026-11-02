@@ -69,7 +69,7 @@ if calias_env:
         print("Baked channel alias:", calias_env)
 
 defchan_env = os.environ.get("DEFAULT_CHANNELS") or ""
-defchan_env = [c for c in defchan_env.split(",")] if defchan_env else []
+defchan_env = defchan_env.split(",") if defchan_env else []
 defchan_baked = [c.base_url for c in context.default_channels]
 if defchan_env:
     if [Channel(c).base_url for c in defchan_env] != defchan_baked:
