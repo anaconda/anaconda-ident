@@ -164,9 +164,24 @@ jobs:
         conda install 'anaconda-client>=1.13.1'
         [[ ${{ github.ref }} =~ ^refs/tags/ ]] || export LABEL="--label dev"
         anaconda --verbose --token ${{ secrets.ANACONDA_TOKEN }} upload --user ctools $LABEL conda-bld/*/*.conda --force
+  # Required status check. It must run (and fail) when an upstream job fails:
+  # GitHub treats a *skipped* required check as passing, so a plain `needs:`
+  # gate lets auto-merge proceed on a red build. always() rather than
+  # !cancelled() so a cancelled run also reports failure instead of skipping.
   tests-pass:
     name: tests-pass
     needs: [tests]
+    if: always()
     runs-on: ubuntu-latest
     steps:
-    - run: echo "all tests succeeded"
+    - name: Require every upstream job to succeed
+      env:
+        RESULTS: ${{ join(needs.*.result, ' ') }}
+      run: |
+        echo "Upstream job results: $RESULTS"
+        for result in $RESULTS; do
+          if [ "$result" != "success" ]; then
+            echo "::error::An upstream job finished with '$result'"
+            exit 1
+          fi
+        done

@@ -21,10 +21,21 @@ jobs:
       aau-spec: ${{ steps.discover.outputs.aau-spec }}
       aid-spec: ${{ steps.discover.outputs.aid-spec }}
     steps:
+    # The ubuntu-26.04 runner image (ubuntu-latest as of 2026-10-30) no
+    # longer ships Miniconda at /usr/share/miniconda. setup-miniconda
+    # installs it and exports $CONDA for the next step.
+    - name: Setup Miniconda
+      uses: conda-incubator/setup-miniconda@be893c923ea9cf1cf7cd510fbdde27c7e18cbdcb # v4.1.0
+      with:
+        miniconda-version: 'latest'
+        auto-activate-base: true
+        activate-environment: ''
+        channels: defaults
     - name: Discover latest canary build
       id: discover
-      shell: '/usr/share/miniconda/bin/python {0}'
+      shell: bash -e {0}
       run: |
+        "$CONDA/bin/python" - <<'EOF'
         # Search for conda packages in canary channel
         import json, sys, io, os, re
         from conda.cli.main import main
@@ -68,6 +79,7 @@ jobs:
         print(specs)
         with open(os.getenv("GITHUB_OUTPUT"), "a") as fp:
             fp.write(specs)
+        EOF
 
   test:
     needs: discover-canary
@@ -138,7 +150,7 @@ jobs:
         echo "=== Debug: Job Outputs ==="
         echo "CONDA_SPEC: '${{ needs.discover-canary.outputs.conda-spec }}'"
         echo "AAU_SPEC: '${{ needs.discover-canary.outputs.aau-spec }}'"
-        echo "AID_SPEC: '${{ needs.discover-canary.outputs.aid-spec }}"
+        echo "AID_SPEC: '${{ needs.discover-canary.outputs.aid-spec }}'"
         echo "PYTHON_VERSIONS: '${{ needs.discover-canary.outputs.python-versions }}'"
         echo "TEST_RESULT: '${{ needs.test.result }}'"
         echo "DISCOVER_RESULT: '${{ needs.discover-canary.result }}'"
